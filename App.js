@@ -1,12 +1,42 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import MapScreen from './screens/map';
+
+const Stack = createNativeStackNavigator();
+
+function HomeScreen({ navigation }) {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Welcome to Heira</Text>
+      <TouchableOpacity 
+        style={styles.button}
+        onPress={() => navigation.navigate('Map')}
+      >
+        <Text style={styles.buttonText}>Go to Map</Text>
+      </TouchableOpacity>
+      <StatusBar style="auto" />
+    </View>
+  );
+}
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.js to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator initialRouteName="Home">
+        <Stack.Screen 
+          name="Home" 
+          component={HomeScreen}
+          options={{ title: 'Home' }}
+        />
+        <Stack.Screen 
+          name="Map" 
+          component={MapScreen}
+          options={{ title: 'Map View' }}
+        />
+      </Stack.Navigator>
+    </NavigationContainer>
   );
 }
 
@@ -16,5 +46,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 30,
+  },
+  button: {
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 30,
+    paddingVertical: 15,
+    borderRadius: 10,
+  },
+  buttonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
   },
 });
