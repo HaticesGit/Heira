@@ -16,6 +16,8 @@ export default function MapScreen() {
   const [loading, setLoading] = useState(false);
 
 
+  const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjVkMGExODZjMWE4ODRhNDVhNGI1ZGZmMDVlNzI3Y2IzIiwiaCI6Im11cm11cjY0In0=';
+
   const geocodeAddress = async (address) => {
     try {
       const response = await fetch(
@@ -62,19 +64,20 @@ export default function MapScreen() {
       }
 
       const response = await fetch(
-        `https://router.project-osrm.org/route/v1/driving/${originCoords.longitude},${originCoords.latitude};${destCoords.longitude},${destCoords.latitude}?overview=full&geometries=geojson`
+        `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_API_KEY}&start=${originCoords.longitude},${originCoords.latitude}&end=${destCoords.longitude},${destCoords.latitude}`,
+        { headers: { 'Accept': 'application/geo+json' } }
       );
       const data = await response.json();
 
-      if (data.routes && data.routes[0]) {
-        const coords = data.routes[0].geometry.coordinates.map(([lon, lat]) => ({
+      if (data.features && data.features[0]) {
+        const coords = data.features[0].geometry.coordinates.map(([lon, lat]) => ({
           latitude: lat,
           longitude: lon,
         }));
         setRouteCoords(coords);
 
-        const distance = (data.routes[0].distance / 1000).toFixed(2);
-        const duration = Math.round(data.routes[0].duration / 60);
+        const distance = (data.features[0].properties.segments[0].distance / 1000).toFixed(2);
+        const duration = Math.round(data.features[0].properties.segments[0].duration / 60);
         setRouteInfo({
           distance,
           duration,
@@ -90,6 +93,8 @@ export default function MapScreen() {
             longitudeDelta: 0.15,
           });
         }
+      } else {
+        Alert.alert('Error', 'No route found. Try different locations.');
       }
     } catch (error) {
       Alert.alert('Error', 'Failed to fetch route. Check your internet connection.');
@@ -132,18 +137,12 @@ export default function MapScreen() {
             coordinates={routeCoords}
             strokeColor="#0066FF"
             strokeWidth={3}
-          />
-        )}
-        {!routeInfo && (
-          <Marker
-            coordinate={{ latitude: region.latitude, longitude: region.longitude }}
-            title="My Location"
-            description="This is a marker"
+            pointerEvents="none"
           />
         )}
       </MapView>
 
-      <ScrollView style={styles.routePlannerContainer}>
+      <ScrollView style={styles.routePlannerContainer} pointerEvents="box-none">
           <Text style={styles.title}>Route Planner</Text>
 
           <TextInput
