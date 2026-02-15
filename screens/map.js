@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { StyleSheet, View, Dimensions, TextInput, TouchableOpacity, Text, ScrollView, Alert } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function MapScreen() {
+  const mapRef = useRef(null);
   const [region, setRegion] = useState({
     latitude: 51.0259,
     longitude: 4.4775,
@@ -86,12 +87,40 @@ export default function MapScreen() {
         });
 
         if (coords.length > 0) {
-          const midpoint = coords[Math.floor(coords.length / 2)];
-          setRegion({
-            ...midpoint,
-            latitudeDelta: 0.15,
-            longitudeDelta: 0.15,
-          });
+          const lats = coords.map(c => c.latitude);
+          const lons = coords.map(c => c.longitude);
+          
+          const minLat = Math.min(...lats);
+          const maxLat = Math.max(...lats);
+          const minLon = Math.min(...lons);
+          const maxLon = Math.max(...lons);
+          
+          const centerLat = (minLat + maxLat) / 2;
+          const centerLon = (minLon + maxLon) / 2;
+          
+          const routeLatDelta = maxLat - minLat;
+          const routeLonDelta = maxLon - minLon;
+          
+          // Account for menu taking 40% of screen - need more zoom out
+          const padding = 1.5;
+          const menuFactor = 1.67; // 1 / 0.6 = 1.67 (accounting for 60% visible height)
+          
+          const latDelta = routeLatDelta * padding * menuFactor;
+          const lonDelta = routeLonDelta * padding * menuFactor;
+          
+          // Shift center down by ~20% to center in bottom 60% of screen
+          const offsetLat = routeLatDelta * 0.35;
+          
+          const newRegion = {
+            latitude: centerLat + offsetLat,
+            longitude: centerLon,
+            latitudeDelta: Math.max(latDelta, 0.02),
+            longitudeDelta: Math.max(lonDelta, 0.02),
+          };
+          
+          if (mapRef.current) {
+            mapRef.current.animateToRegion(newRegion, 500);
+          }
         }
       } else {
         Alert.alert('Error', 'No route found. Try different locations.');
@@ -112,6 +141,7 @@ export default function MapScreen() {
   return (
     <View style={styles.container}>
       <MapView
+        ref={mapRef}
         style={styles.map}
         initialRegion={region}
         onRegionChangeComplete={setRegion}
