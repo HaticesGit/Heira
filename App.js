@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import MapScreen from './screens/map';
+import VoiceRecorderScreen from './screens/voiceRecorder';
 
 const Stack = createNativeStackNavigator();
 
@@ -15,6 +16,12 @@ function HomeScreen({ navigation }) {
         onPress={() => navigation.navigate('Map')}
       >
         <Text style={styles.buttonText}>Go to Map</Text>
+      </TouchableOpacity>
+      <TouchableOpacity 
+        style={styles.button}
+        onPress={() => navigation.navigate('VoiceRecorder')}
+      >
+        <Text style={styles.buttonText}>Go to Voice Recorder</Text>
       </TouchableOpacity>
       <StatusBar style="auto" />
     </View>
@@ -35,7 +42,13 @@ export default function App() {
           component={MapScreen}
           options={{ title: 'Map View' }}
         />
+        <Stack.Screen 
+          name="VoiceRecorder" 
+          component={VoiceRecorderScreen}
+          options={{ title: 'Voice Recorder' }}
+        />
       </Stack.Navigator>
+      
     </NavigationContainer>
   );
 }
