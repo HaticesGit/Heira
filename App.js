@@ -1,80 +1,100 @@
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, TouchableOpacity } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import MapScreen from './screens/map';
-import VoiceRecorderScreen from './screens/voiceRecorder';
+import React from "react";
+import { Text } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { Ionicons } from "@expo/vector-icons";
+
+import { COLORS } from "./constants/colors";
+import HomeScreen from "./screens/home";
+import MapScreen from "./screens/map";
+import CommunityScreen from "./screens/community";
+import VoiceRecorderScreen from "./screens/voiceRecorder";
 
 const Stack = createNativeStackNavigator();
+const Tab = createBottomTabNavigator();
 
-function HomeScreen({ navigation }) {
+function MainTabs() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Heira</Text>
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => navigation.navigate('Map')}
-      >
-        <Text style={styles.buttonText}>Go to Map</Text>
-      </TouchableOpacity>
-      <TouchableOpacity 
-        style={styles.button}
-        onPress={() => navigation.navigate('VoiceRecorder')}
-      >
-        <Text style={styles.buttonText}>Go to Voice Recorder</Text>
-      </TouchableOpacity>
-      <StatusBar style="auto" />
-    </View>
+    <Tab.Navigator
+      initialRouteName="HomeTab"
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: COLORS.blue,
+        tabBarInactiveTintColor: COLORS.span,
+        tabBarStyle: {
+          height: 65,
+          paddingTop: 7,
+          paddingBottom: 7,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: "600",
+        },
+      }}
+    >
+      <Tab.Screen
+        name="HomeTab"
+        component={HomeScreen}
+        options={{
+          title: "Home",
+          tabBarIcon: ({ color, size }) => (
+          <Ionicons name="home-outline" size={size} color={color} />
+          ),
+        }}
+      />
+
+      <Tab.Screen
+        name="MapTab"
+        component={MapScreen}
+        options={{
+          title: "Map",
+          tabBarIcon: ({ color, size }) => (
+          <Ionicons
+            name="location-outline"
+            size={size}
+            color={color}
+          />
+          ),
+        }}
+      />
+
+      <Tab.Screen
+        name="CommunityTab"
+        component={CommunityScreen}
+        options={{
+          title: "Community",
+          tabBarIcon: ({ color, size }) => (
+        <Ionicons
+          name="people-outline"
+          size={size}
+          color={color}
+        />
+      ),
+        }}
+      />
+    </Tab.Navigator>
   );
 }
 
 export default function App() {
   return (
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="Home">
-        <Stack.Screen 
-          name="Home" 
-          component={HomeScreen}
-          options={{ title: 'Home' }}
+      <Stack.Navigator>
+        <Stack.Screen
+          name="MainTabs"
+          component={MainTabs}
+          options={{ headerShown: false }}
         />
-        <Stack.Screen 
-          name="Map" 
-          component={MapScreen}
-          options={{ title: 'Map View' }}
-        />
-        <Stack.Screen 
-          name="VoiceRecorder" 
+
+        <Stack.Screen
+          name="VoiceRecorder"
           component={VoiceRecorderScreen}
-          options={{ title: 'Voice Recorder' }}
+          options={{
+            title: "Voice Recording",
+          }}
         />
       </Stack.Navigator>
-      
     </NavigationContainer>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 30,
-  },
-  button: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 30,
-    paddingVertical: 15,
-    borderRadius: 10,
-    marginBottom: 20,
-  },
-  buttonText: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-});
