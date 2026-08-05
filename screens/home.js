@@ -1,45 +1,526 @@
-import React from "react";
+import React, { useEffect, useRef, useState }  from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { Audio } from "expo-av";
+
 import { COLORS } from "../constants/colors";
-import { View, Text, TouchableOpacity, StyleSheet, } from "react-native";
 
 export default function HomeScreen({ navigation }) {
+    const alarmSoundRef = useRef(null);
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (alarmSoundRef.current) {
+        alarmSoundRef.current.unloadAsync();
+        alarmSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleAlarm = async () => {
+    try {
+      if (isAlarmPlaying && alarmSoundRef.current) {
+        await alarmSoundRef.current.stopAsync();
+        await alarmSoundRef.current.unloadAsync();
+
+        alarmSoundRef.current = null;
+        setIsAlarmPlaying(false);
+        return;
+      }
+
+      const { sound } = await Audio.Sound.createAsync(
+        require("../assets/sounds/warningAlarm.mp3"),
+        {
+          shouldPlay: false,
+          isLooping: true,
+          volume: 0.25,
+        }
+      );
+
+      alarmSoundRef.current = sound;
+      setIsAlarmPlaying(true);
+
+      await sound.playAsync();
+    } catch (error) {
+      console.log("Alarm sound error:", error);
+      setIsAlarmPlaying(false);
+    }
+  };
+
+  const meetups = [
+    {
+      id: "1",
+      location: "Ergensstraat 12, Mechelen",
+      date: "14/07/26",
+      time: "18:00",
+    },
+    {
+      id: "2",
+      location: "IJzerenleen 36, Mechelen",
+      date: "27/07/26",
+      time: "14:30",
+    },
+    {
+      id: "3",
+      location: "Slenderstraat 9, Molenhoek",
+      date: "05/08/26",
+      time: "16:00",
+    },
+    {
+      id: "4",
+      location: "Woudstraat 1, Lier",
+      date: "19/08/26",
+      time: "04:00",
+    },
+  ];
+
+  const callEmergencyServices = () => {
+    Alert.alert(
+      "Call emergency services",
+      "Are you sure you want to call 112?",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Call 112",
+          style: "destructive",
+          onPress: () => Linking.openURL("tel:112"),
+        },
+      ]
+    );
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Welcome to Heira</Text>
-      <TouchableOpacity
-        style={styles.btn}
-        onPress={() => navigation.navigate("VoiceRecorder")}
-      >
-        <Text style={styles.btnText}>Voice Recorder</Text>
-      </TouchableOpacity>
-    </View>
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Home</Text>
+
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => {
+              console.log("Profile pressed");
+            }}
+          >
+            <Ionicons
+              name="person"
+              size={24}
+              color={COLORS.blue}
+            />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text style={styles.sectionTitle}>Future meet-ups</Text>
+
+          {meetups.length > 0 ? (
+            <View>
+              {meetups.map((meetup) => (
+                <TouchableOpacity
+                  key={meetup.id}
+                  style={styles.meetupCard}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    console.log("Meet-up selected:", meetup.id);
+                  }}
+                >
+                  <View style={styles.meetupIndicator} />
+
+                  <View style={styles.meetupContent}>
+                    <View style={styles.locationRow}>
+                      <Ionicons
+                        name="location"
+                        size={20}
+                        color={COLORS.green}
+                      />
+
+                      <Text
+                        style={styles.locationText}
+                        numberOfLines={1}
+                      >
+                        {meetup.location}
+                      </Text>
+                    </View>
+
+                    <View style={styles.meetupDetails}>
+                      <View style={styles.detailItem}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={17}
+                          color={COLORS.blue}
+                        />
+
+                        <Text style={styles.detailText}>
+                          {meetup.date}
+                        </Text>
+                      </View>
+
+                      <View style={styles.detailItem}>
+                        <Ionicons
+                          name="time-outline"
+                          size={17}
+                          color={COLORS.blue}
+                        />
+
+                        <Text style={styles.detailText}>
+                          {meetup.time}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <Ionicons
+                    name="chevron-forward"
+                    size={23}
+                    color={COLORS.blue}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <View style={styles.emptyState}>
+              <View style={styles.emptyIllustration}>
+                <Ionicons
+                  name="location"
+                  size={72}
+                  color={COLORS.green}
+                />
+              </View>
+
+              <Text style={styles.emptyTitle}>
+                You have no meet-ups planned
+              </Text>
+
+              <Text style={styles.emptyText}>
+                Saved meet-ups will be available here.
+              </Text>
+            </View>
+          )}
+
+          <Text style={[styles.sectionTitle, styles.servicesTitle]}>
+            Services
+          </Text>
+
+          <View style={styles.servicesRow}>
+            <TouchableOpacity
+              style={[
+                styles.serviceCard,
+                styles.shareLocationCard,
+              ]}
+              activeOpacity={0.8}
+              onPress={() => navigation.navigate("MapTab")}
+            >
+              <Ionicons
+                name="location"
+                size={29}
+                color={COLORS.green}
+              />
+
+              <Text
+                style={[
+                  styles.serviceText,
+                  styles.shareLocationText,
+                ]}
+              >
+                Share{"\n"}location
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+  style={[
+    styles.serviceCard,
+    styles.alarmCard,
+    isAlarmPlaying && styles.alarmCardActive,
+  ]}
+  activeOpacity={0.8}
+  onPress={toggleAlarm}
+>
+  <Ionicons
+    name={isAlarmPlaying ? "stop-circle-outline" : "radio-outline"}
+    size={29}
+    color={COLORS.offWhite}
+  />
+
+  <Text style={styles.serviceText}>
+    {isAlarmPlaying ? "Stop Siren" : "Alarm Siren"}
+  </Text>
+</TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.serviceCard,
+                styles.emergencyCard,
+              ]}
+              activeOpacity={0.8}
+              onPress={callEmergencyServices}
+            >
+              <Ionicons
+                name="alert-circle-outline"
+                size={30}
+                color={COLORS.offWhite}
+              />
+
+              <Text style={styles.serviceText}>
+                Call 112
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.safetyMessage}>
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={18}
+              color={COLORS.green}
+            />
+
+            <Text style={styles.safetyMessageText}>
+              You’re safe. Help is always one tap away
+            </Text>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.blue,
+  },
+
+  screen: {
     flex: 1,
     backgroundColor: COLORS.offWhite,
+  },
+
+  header: {
+    minHeight: 75,
+    backgroundColor: COLORS.blue,
+    borderBottomLeftRadius: 20,
+    borderBottomRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingBottom: 14,
+    paddingTop: 8,
+    flexDirection: "row",
+    alignItems: "flex-end",
+    justifyContent: "space-between",
+  },
+
+  headerTitle: {
+    color: COLORS.offWhite,
+    fontSize: 28,
+    fontWeight: "700",
+  },
+
+  profileButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: COLORS.lightgreen,
     alignItems: "center",
     justifyContent: "center",
-    padding: 20,
+    borderWidth: 2,
+    borderColor: COLORS.offWhite,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 30,
-    color: COLORS.offBlack,
+
+  scrollView: {
+    flex: 1,
   },
-  btn: {
-    backgroundColor: COLORS.blue,
-    width: "100%",
-    paddingVertical: 15,
+
+  scrollContent: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 24,
+  },
+
+  sectionTitle: {
+    color: COLORS.blue,
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+
+  meetupCard: {
+    minHeight: 88,
+    backgroundColor: COLORS.offWhite,
     borderRadius: 10,
+    marginBottom: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    flexDirection: "row",
+    alignItems: "center",
+
+    borderWidth: 1,
+    borderColor: COLORS.midGray,
+
+    shadowColor: COLORS.offBlack,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  meetupIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: COLORS.blue,
+    marginRight: 14,
+  },
+
+  meetupContent: {
+    flex: 1,
+  },
+
+  locationRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 13,
+  },
+
+  locationText: {
+    flex: 1,
+    marginLeft: 7,
+    color: COLORS.blue,
+    fontSize: 15,
+    fontWeight: "500",
+  },
+
+  meetupDetails: {
+    flexDirection: "row",
     alignItems: "center",
   },
-  btnText: {
+
+  detailItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginRight: 28,
+  },
+
+  detailText: {
+    color: COLORS.blue,
+    fontSize: 14,
+    marginLeft: 6,
+  },
+
+  emptyState: {
+    minHeight: 340,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+
+  emptyIllustration: {
+    width: 150,
+    height: 130,
+    borderRadius: 75,
+    backgroundColor: COLORS.lightgreen,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+
+  emptyTitle: {
+    color: COLORS.blue,
+    fontSize: 17,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 5,
+  },
+
+  emptyText: {
+    color: COLORS.span,
+    fontSize: 16,
+    lineHeight: 22,
+    textAlign: "center",
+    maxWidth: 240,
+  },
+
+  servicesTitle: {
+    marginTop: 8,
+  },
+
+  servicesRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+
+  serviceCard: {
+    width: "31.5%",
+    minHeight: 140,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 5,
+
+    shadowColor: COLORS.offBlack,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  shareLocationCard: {
+    backgroundColor: COLORS.lightgreen,
+    borderWidth: 1,
+    borderColor: COLORS.midGray,
+  },
+
+  alarmCard: {
+    backgroundColor: COLORS.blue,
+  },
+  alarmCardActive: {
+  opacity: 0.8,
+},
+
+  emergencyCard: {
+    backgroundColor: COLORS.red,
+  },
+
+  serviceText: {
     color: COLORS.offWhite,
     fontSize: 16,
-    fontWeight: "600",
+    lineHeight: 22,
+    textAlign: "center",
+    marginTop: 13,
+    fontWeight: "500",
+  },
+
+  shareLocationText: {
+    color: COLORS.green,
+  },
+
+  safetyMessage: {
+    minHeight: 45,
+    backgroundColor: COLORS.lightgreen,
+    borderRadius: 8,
+    marginTop: 13,
+    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  safetyMessageText: {
+    flexShrink: 1,
+    color: COLORS.green,
+    fontSize: 14,
+    marginLeft: 7,
+    textAlign: "center",
   },
 });
