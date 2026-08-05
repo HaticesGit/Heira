@@ -7,6 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "./constants/colors";
 import HomeScreen from "./screens/home";
+import ProfileScreen from "./screens/profile";
 import MapScreen from "./screens/map";
 import CommunityScreen from "./screens/community";
 import VoiceRecorderScreen from "./screens/voiceRecorder";
@@ -94,6 +95,11 @@ export default function App() {
             title: "Voice Recording",
           }}
         />
+        <Stack.Screen
+  name="Profile"
+  component={ProfileScreen}
+  options={{ headerShown: false }}
+/>
       </Stack.Navigator>
     </NavigationContainer>
   );
