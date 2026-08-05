@@ -79,9 +79,7 @@ export default function EmergencyContactsScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() =>
-              console.log("New Contact")
-            }
+            onPress={() => navigation.navigate("AddContact")}
           >
             <Ionicons
               name="person-add-outline"

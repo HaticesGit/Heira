@@ -13,6 +13,7 @@ import CommunityScreen from "./screens/community";
 import VoiceRecorderScreen from "./screens/voiceRecorder";
 import SettingsScreen from "./screens/settings";
 import EmergencyContactsScreen from "./screens/emergencyContacts";
+import AddContactScreen from "./screens/addContact";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -110,6 +111,11 @@ export default function App() {
         <Stack.Screen
           name="EmergencyContacts"
           component={EmergencyContactsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AddContact"
+          component={AddContactScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
