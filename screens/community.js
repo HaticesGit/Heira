@@ -165,7 +165,7 @@ export default function CommunityScreen({ navigation }) {
         <TouchableOpacity
           style={styles.addButton}
           activeOpacity={0.85}
-          onPress={() => console.log("Create meetup pressed")}
+          onPress={() => navigation.navigate("CreateMeetup")}
           accessibilityRole="button"
           accessibilityLabel="Create a new meetup"
         >

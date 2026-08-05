@@ -15,6 +15,7 @@ import SettingsScreen from "./screens/settings";
 import EmergencyContactsScreen from "./screens/emergencyContacts";
 import AddContactScreen from "./screens/addContact";
 import EditContactScreen from "./screens/editContact";
+import CreateMeetupScreen from "./screens/createMeetup";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -120,10 +121,15 @@ export default function App() {
           options={{ headerShown: false }}
         />
         <Stack.Screen
-  name="EditContact"
-  component={EditContactScreen}
-  options={{ headerShown: false }}
-/>
+          name="EditContact"
+          component={EditContactScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="CreateMeetup"
+          component={CreateMeetupScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );
