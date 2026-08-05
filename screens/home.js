@@ -1,54 +1,15 @@
-import React, { useEffect, useRef, useState }  from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking} from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 
+import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
 
 export default function HomeScreen({ navigation }) {
-    const alarmSoundRef = useRef(null);
+  const alarmSoundRef = useRef(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-
-  useEffect(() => {
-    return () => {
-      if (alarmSoundRef.current) {
-        alarmSoundRef.current.unloadAsync();
-        alarmSoundRef.current = null;
-      }
-    };
-  }, []);
-
-  const toggleAlarm = async () => {
-    try {
-      if (isAlarmPlaying && alarmSoundRef.current) {
-        await alarmSoundRef.current.stopAsync();
-        await alarmSoundRef.current.unloadAsync();
-
-        alarmSoundRef.current = null;
-        setIsAlarmPlaying(false);
-        return;
-      }
-
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/sounds/warningAlarm.mp3"),
-        {
-          shouldPlay: false,
-          isLooping: true,
-          volume: 0.25,
-        }
-      );
-
-      alarmSoundRef.current = sound;
-      setIsAlarmPlaying(true);
-
-      await sound.playAsync();
-    } catch (error) {
-      console.log("Alarm sound error:", error);
-      setIsAlarmPlaying(false);
-    }
-  };
-
   const meetups = [
     {
       id: "1",
@@ -76,6 +37,63 @@ export default function HomeScreen({ navigation }) {
     },
   ];
 
+  useEffect(() => {
+    return () => {
+      if (alarmSoundRef.current) {
+        alarmSoundRef.current.unloadAsync();
+        alarmSoundRef.current = null;
+      }
+    };
+  }, []);
+
+  const toggleAlarm = async () => {
+    try {
+      if (isAlarmPlaying && alarmSoundRef.current) {
+        await alarmSoundRef.current.stopAsync();
+        await alarmSoundRef.current.unloadAsync();
+
+        alarmSoundRef.current = null;
+        setIsAlarmPlaying(false);
+
+        return;
+      }
+      
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+
+      const { sound } = await Audio.Sound.createAsync(
+        require("../assets/sounds/warningAlarm.mp3"),
+        {
+          shouldPlay: false,
+          isLooping: true,
+          volume: 0.25,
+        }
+      );
+
+      alarmSoundRef.current = sound;
+
+      await sound.setVolumeAsync(0.25);
+      await sound.playAsync();
+
+      setIsAlarmPlaying(true);
+    } catch (error) {
+      console.log("Alarm sound error:", error);
+
+      alarmSoundRef.current = null;
+      setIsAlarmPlaying(false);
+
+      Alert.alert(
+        "Alarm error",
+        "The alarm sound could not be played."
+      );
+    }
+  };
+
   const callEmergencyServices = () => {
     Alert.alert(
       "Call emergency services",
@@ -102,9 +120,8 @@ export default function HomeScreen({ navigation }) {
 
           <TouchableOpacity
             style={styles.profileButton}
-            onPress={() => {
-              console.log("Profile pressed");
-            }}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("Profile")}
           >
             <Ionicons
               name="person"
@@ -119,70 +136,23 @@ export default function HomeScreen({ navigation }) {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <Text style={styles.sectionTitle}>Future meet-ups</Text>
+          <Text style={styles.sectionTitle}>
+            Future meet-ups
+          </Text>
 
           {meetups.length > 0 ? (
             <View>
               {meetups.map((meetup) => (
-                <TouchableOpacity
+                <MeetupCard
                   key={meetup.id}
-                  style={styles.meetupCard}
-                  activeOpacity={0.8}
+                  meetup={meetup}
                   onPress={() => {
-                    console.log("Meet-up selected:", meetup.id);
+                    console.log(
+                      "Meet-up selected:",
+                      meetup.id
+                    );
                   }}
-                >
-                  <View style={styles.meetupIndicator} />
-
-                  <View style={styles.meetupContent}>
-                    <View style={styles.locationRow}>
-                      <Ionicons
-                        name="location"
-                        size={20}
-                        color={COLORS.green}
-                      />
-
-                      <Text
-                        style={styles.locationText}
-                        numberOfLines={1}
-                      >
-                        {meetup.location}
-                      </Text>
-                    </View>
-
-                    <View style={styles.meetupDetails}>
-                      <View style={styles.detailItem}>
-                        <Ionicons
-                          name="calendar-outline"
-                          size={17}
-                          color={COLORS.blue}
-                        />
-
-                        <Text style={styles.detailText}>
-                          {meetup.date}
-                        </Text>
-                      </View>
-
-                      <View style={styles.detailItem}>
-                        <Ionicons
-                          name="time-outline"
-                          size={17}
-                          color={COLORS.blue}
-                        />
-
-                        <Text style={styles.detailText}>
-                          {meetup.time}
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-
-                  <Ionicons
-                    name="chevron-forward"
-                    size={23}
-                    color={COLORS.blue}
-                  />
-                </TouchableOpacity>
+                />
               ))}
             </View>
           ) : (
@@ -205,7 +175,12 @@ export default function HomeScreen({ navigation }) {
             </View>
           )}
 
-          <Text style={[styles.sectionTitle, styles.servicesTitle]}>
+          <Text
+            style={[
+              styles.sectionTitle,
+              styles.servicesTitle,
+            ]}
+          >
             Services
           </Text>
 
@@ -235,24 +210,30 @@ export default function HomeScreen({ navigation }) {
             </TouchableOpacity>
 
             <TouchableOpacity
-  style={[
-    styles.serviceCard,
-    styles.alarmCard,
-    isAlarmPlaying && styles.alarmCardActive,
-  ]}
-  activeOpacity={0.8}
-  onPress={toggleAlarm}
->
-  <Ionicons
-    name={isAlarmPlaying ? "stop-circle-outline" : "radio-outline"}
-    size={29}
-    color={COLORS.offWhite}
-  />
+              style={[
+                styles.serviceCard,
+                styles.alarmCard,
+                isAlarmPlaying && styles.alarmCardActive,
+              ]}
+              activeOpacity={0.8}
+              onPress={toggleAlarm}
+            >
+              <Ionicons
+                name={
+                  isAlarmPlaying
+                    ? "stop-circle-outline"
+                    : "radio-outline"
+                }
+                size={29}
+                color={COLORS.offWhite}
+              />
 
-  <Text style={styles.serviceText}>
-    {isAlarmPlaying ? "Stop Siren" : "Alarm Siren"}
-  </Text>
-</TouchableOpacity>
+              <Text style={styles.serviceText}>
+                {isAlarmPlaying
+                  ? "Stop Siren"
+                  : "Alarm Siren"}
+              </Text>
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[
@@ -308,8 +289,8 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 20,
     borderBottomRightRadius: 20,
     paddingHorizontal: 16,
-    paddingBottom: 14,
     paddingTop: 8,
+    paddingBottom: 14,
     flexDirection: "row",
     alignItems: "flex-end",
     justifyContent: "space-between",
@@ -347,72 +328,6 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: "700",
     marginBottom: 10,
-  },
-
-  meetupCard: {
-    minHeight: 88,
-    backgroundColor: COLORS.offWhite,
-    borderRadius: 10,
-    marginBottom: 11,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    flexDirection: "row",
-    alignItems: "center",
-
-    borderWidth: 1,
-    borderColor: COLORS.midGray,
-
-    shadowColor: COLORS.offBlack,
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-
-  meetupIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: COLORS.blue,
-    marginRight: 14,
-  },
-
-  meetupContent: {
-    flex: 1,
-  },
-
-  locationRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 13,
-  },
-
-  locationText: {
-    flex: 1,
-    marginLeft: 7,
-    color: COLORS.blue,
-    fontSize: 15,
-    fontWeight: "500",
-  },
-
-  meetupDetails: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-
-  detailItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 28,
-  },
-
-  detailText: {
-    color: COLORS.blue,
-    fontSize: 14,
-    marginLeft: 6,
   },
 
   emptyState: {
@@ -461,9 +376,9 @@ const styles = StyleSheet.create({
     width: "31.5%",
     minHeight: 140,
     borderRadius: 10,
+    paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 5,
 
     shadowColor: COLORS.offBlack,
     shadowOffset: {
@@ -484,9 +399,10 @@ const styles = StyleSheet.create({
   alarmCard: {
     backgroundColor: COLORS.blue,
   },
+
   alarmCardActive: {
-  opacity: 0.8,
-},
+    opacity: 0.8,
+  },
 
   emergencyCard: {
     backgroundColor: COLORS.red,
