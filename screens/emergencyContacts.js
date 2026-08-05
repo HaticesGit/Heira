@@ -68,13 +68,15 @@ export default function EmergencyContactsScreen({ navigation }) {
 
           {CONTACTS.map((contact) => (
             <ContactCard
-              key={contact.id}
-              name={contact.name}
-              phone={contact.phone}
-              onPress={() =>
-                console.log("Edit:", contact.name)
-              }
-            />
+  key={contact.id}
+  name={contact.name}
+  phone={contact.phone}
+  onPress={() =>
+    navigation.navigate("EditContact", {
+      contact,
+    })
+  }
+/>
           ))}
 
           <TouchableOpacity

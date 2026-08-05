@@ -14,6 +14,7 @@ import VoiceRecorderScreen from "./screens/voiceRecorder";
 import SettingsScreen from "./screens/settings";
 import EmergencyContactsScreen from "./screens/emergencyContacts";
 import AddContactScreen from "./screens/addContact";
+import EditContactScreen from "./screens/editContact";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -118,6 +119,11 @@ export default function App() {
           component={AddContactScreen}
           options={{ headerShown: false }}
         />
+        <Stack.Screen
+  name="EditContact"
+  component={EditContactScreen}
+  options={{ headerShown: false }}
+/>
       </Stack.Navigator>
     </NavigationContainer>
   );
