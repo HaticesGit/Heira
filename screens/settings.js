@@ -38,9 +38,7 @@ export default function SettingsScreen({ navigation }) {
           <SettingRow
             label="Emergency contacts"
             buttonText="View"
-            onPress={() => {
-              console.log("Emergency contacts pressed");
-            }}
+            onPress={() => navigation.navigate("EmergencyContacts")}
           />
 
           <SettingRow

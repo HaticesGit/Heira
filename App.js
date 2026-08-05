@@ -12,6 +12,7 @@ import MapScreen from "./screens/map";
 import CommunityScreen from "./screens/community";
 import VoiceRecorderScreen from "./screens/voiceRecorder";
 import SettingsScreen from "./screens/settings";
+import EmergencyContactsScreen from "./screens/emergencyContacts";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -104,6 +105,11 @@ export default function App() {
         <Stack.Screen
           name="Profile"
           component={ProfileScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="EmergencyContacts"
+          component={EmergencyContactsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
