@@ -11,6 +11,7 @@ import ProfileScreen from "./screens/profile";
 import MapScreen from "./screens/map";
 import CommunityScreen from "./screens/community";
 import VoiceRecorderScreen from "./screens/voiceRecorder";
+import SettingsScreen from "./screens/settings";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -96,10 +97,15 @@ export default function App() {
           }}
         />
         <Stack.Screen
-  name="Profile"
-  component={ProfileScreen}
-  options={{ headerShown: false }}
-/>
+          name="Settings"
+          component={SettingsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Profile"
+          component={ProfileScreen}
+          options={{ headerShown: false }}
+        />
       </Stack.Navigator>
     </NavigationContainer>
   );

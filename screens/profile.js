@@ -33,7 +33,7 @@ export default function ProfileScreen({ navigation }) {
             <TouchableOpacity
               style={styles.headerButton}
               activeOpacity={0.8}
-              onPress={() => console.log("Settings pressed")}
+              onPress={() => navigation.navigate("Settings")}
               accessibilityRole="button"
               accessibilityLabel="Open settings"
             >
