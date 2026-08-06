@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from "react-native";
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -19,48 +19,42 @@ const COMMUNITY_MEETUPS = [
   },
   {
     id: "2",
-    username: "SquishyChameleon",
-    participantCount: 12,
-    location: "Tomorrowland",
-    date: "29/07/26",
-    time: "14:00",
-    category: "Festival",
+    username: "NightOwl",
+    participantCount: 8,
+    location: "Brussels Central",
+    date: "02/08/26",
+    time: "21:30",
+    category: "Night out",
     commentCount: 6,
   },
   {
     id: "3",
-    username: "SquishyChameleon",
-    participantCount: 12,
-    location: "Tomorrowland",
-    date: "29/07/26",
-    time: "14:00",
-    category: "Festival",
+    username: "BraveBunny",
+    participantCount: 5,
+    location: "Antwerp Central Station",
+    date: "05/08/26",
+    time: "18:00",
+    category: "Public transport",
     commentCount: 2,
   },
 ];
 
 export default function CommunityScreen({ navigation }) {
-  const [searchQuery, setSearchQuery] = useState("");
-
-  const filteredMeetups = COMMUNITY_MEETUPS.filter((meetup) => {
-    const normalizedQuery = searchQuery.toLowerCase().trim();
-
-    return (
-      meetup.username.toLowerCase().includes(normalizedQuery) ||
-      meetup.location.toLowerCase().includes(normalizedQuery) ||
-      meetup.category.toLowerCase().includes(normalizedQuery)
-    );
-  });
-
   const handleJoinMeetup = (meetup) => {
     console.log("Join meetup:", meetup.id);
   };
 
   const handleOpenComments = (meetup) => {
-  navigation.navigate("Comments", {
-    meetup,
-  });
-};
+    navigation.navigate("Comments", {
+      meetup,
+    });
+  };
+
+  const handleOpenMeetup = (meetup) => {
+    navigation.navigate("MeetupDetail", {
+      meetup,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -86,23 +80,23 @@ export default function CommunityScreen({ navigation }) {
         </View>
 
         <View style={styles.searchSection}>
-          <View style={styles.searchContainer}>
-            <TextInput
-              style={styles.searchInput}
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Search users"
-              placeholderTextColor={COLORS.blue}
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
+          <TouchableOpacity
+            style={styles.searchContainer}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("Search")}
+            accessibilityRole="button"
+            accessibilityLabel="Search users"
+          >
+            <Text style={styles.searchPlaceholder}>
+              Search users
+            </Text>
 
             <Ionicons
               name="search"
               size={24}
               color={COLORS.blue}
             />
-          </View>
+          </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.filterButton}
@@ -123,40 +117,31 @@ export default function CommunityScreen({ navigation }) {
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
         >
-          {filteredMeetups.length > 0 ? (
-            filteredMeetups.map((meetup) => (
+          {COMMUNITY_MEETUPS.length > 0 ? (
+            COMMUNITY_MEETUPS.map((meetup) => (
               <CommunityMeetupCard
                 key={meetup.id}
                 meetup={meetup}
-                onPress={() =>
-                navigation.navigate("MeetupDetail", {
-                    meetup,
-                })
-                }
-                onCommentsPress={() =>
-                  handleOpenComments(meetup)
-                }
-                onJoinPress={() =>
-                  handleJoinMeetup(meetup)
-                }
+                onPress={() => handleOpenMeetup(meetup)}
+                onCommentsPress={() => handleOpenComments(meetup)}
+                onJoinPress={() => handleJoinMeetup(meetup)}
               />
             ))
           ) : (
             <View style={styles.emptyState}>
               <Ionicons
-                name="search-outline"
+                name="people-outline"
                 size={58}
                 color={COLORS.span}
               />
 
               <Text style={styles.emptyTitle}>
-                No meet-ups found
+                No community meet-ups yet
               </Text>
 
               <Text style={styles.emptyText}>
-                Try another username, location or category.
+                Be the first to create a meet-up in your community.
               </Text>
             </View>
           )}
@@ -251,11 +236,10 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
 
-  searchInput: {
+  searchPlaceholder: {
     flex: 1,
     color: COLORS.blue,
     fontSize: 15,
-    paddingVertical: 10,
   },
 
   filterButton: {
