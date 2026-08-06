@@ -146,12 +146,11 @@ export default function HomeScreen({ navigation }) {
                 <MeetupCard
                   key={meetup.id}
                   meetup={meetup}
-                  onPress={() => {
-                    console.log(
-                      "Meet-up selected:",
-                      meetup.id
-                    );
-                  }}
+                  onPress={() =>
+                    navigation.navigate("MeetupDetail", {
+                      meetup,
+                    })
+                  }
                 />
               ))}
             </View>

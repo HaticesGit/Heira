@@ -16,6 +16,7 @@ import EmergencyContactsScreen from "./screens/emergencyContacts";
 import AddContactScreen from "./screens/addContact";
 import EditContactScreen from "./screens/editContact";
 import CreateMeetupScreen from "./screens/createMeetup";
+import MeetupDetailScreen from "./screens/meetupDetail";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -128,6 +129,11 @@ export default function App() {
         <Stack.Screen
           name="CreateMeetup"
           component={CreateMeetupScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="MeetupDetail"
+          component={MeetupDetailScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

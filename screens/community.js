@@ -1,12 +1,5 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  ScrollView,
-  TextInput,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -135,6 +128,11 @@ export default function CommunityScreen({ navigation }) {
               <CommunityMeetupCard
                 key={meetup.id}
                 meetup={meetup}
+                onPress={() =>
+                navigation.navigate("MeetupDetail", {
+                    meetup,
+                })
+                }
                 onCommentsPress={() =>
                   handleOpenComments(meetup)
                 }

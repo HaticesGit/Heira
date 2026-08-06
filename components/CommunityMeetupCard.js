@@ -11,11 +11,16 @@ import { COLORS } from "../constants/colors";
 
 export default function CommunityMeetupCard({
   meetup,
+  onPress,
   onCommentsPress,
   onJoinPress,
 }) {
   return (
-    <View style={styles.card}>
+    <TouchableOpacity
+  style={styles.card}
+  activeOpacity={0.85}
+  onPress={onPress}
+>
       <View style={styles.userRow}>
         <View style={styles.avatar}>
           <Ionicons
@@ -129,7 +134,7 @@ export default function CommunityMeetupCard({
           />
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
