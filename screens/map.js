@@ -244,11 +244,10 @@ export default function MapScreen({ navigation }) {
     setRouteInfo(null);
   };
 
-  const openSafespace = (safespace) => {
-    console.log(
-      "Safespace selected:",
-      safespace.id
-    );
+const openSafespace = (safespace) => {
+  navigation.navigate("SafespaceDetail", {
+    safespace,
+  });
 
     // Later:
     // navigation.navigate("SafespaceDetail", {

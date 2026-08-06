@@ -20,6 +20,9 @@ import MeetupDetailScreen from "./screens/meetupDetail";
 import CommentsScreen from "./screens/comments";
 import SearchScreen from "./screens/search";
 import UserProfileScreen from "./screens/userProfile";
+import SafespaceDetailScreen from "./screens/safespaceDetail";
+import SafespaceReviewsScreen from "./screens/safespaceReviews";
+import AddReviewScreen from "./screens/addReview";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -152,6 +155,21 @@ export default function App() {
         <Stack.Screen
           name="UserProfile"
           component={UserProfileScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SafespaceDetail"
+          component={SafespaceDetailScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SafespaceReviews"
+          component={SafespaceReviewsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AddReview"
+          component={AddReviewScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
