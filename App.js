@@ -19,6 +19,7 @@ import CreateMeetupScreen from "./screens/createMeetup";
 import MeetupDetailScreen from "./screens/meetupDetail";
 import CommentsScreen from "./screens/comments";
 import SearchScreen from "./screens/search";
+import UserProfileScreen from "./screens/userProfile";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -146,6 +147,11 @@ export default function App() {
         <Stack.Screen
           name="Search"
           component={SearchScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="UserProfile"
+          component={UserProfileScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

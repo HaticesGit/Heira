@@ -86,9 +86,11 @@ export default function SearchScreen({ navigation }) {
       <TouchableOpacity
         style={styles.userCard}
         activeOpacity={0.85}
-        onPress={() => {
-          console.log("User selected:", item.username);
-        }}
+        onPress={() =>
+        navigation.navigate("UserProfile", {
+            user: item,
+        })
+        }
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.username}'s profile`}
       >

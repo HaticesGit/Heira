@@ -1,7 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import FilterModal from "../components/FilterModal";
 
 import CommunityMeetupCard from "../components/CommunityMeetupCard";
 import { COLORS } from "../constants/colors";
@@ -40,6 +41,8 @@ const COMMUNITY_MEETUPS = [
 ];
 
 export default function CommunityScreen({ navigation }) {
+const [isFilterVisible, setIsFilterVisible] = useState(false);
+const [activeFilters, setActiveFilters] = useState(null);
   const handleJoinMeetup = (meetup) => {
     console.log("Join meetup:", meetup.id);
   };
@@ -101,7 +104,7 @@ export default function CommunityScreen({ navigation }) {
           <TouchableOpacity
             style={styles.filterButton}
             activeOpacity={0.8}
-            onPress={() => console.log("Filters pressed")}
+            onPress={() => setIsFilterVisible(true)}
             accessibilityRole="button"
             accessibilityLabel="Open community filters"
           >
@@ -160,6 +163,14 @@ export default function CommunityScreen({ navigation }) {
             color={COLORS.offWhite}
           />
         </TouchableOpacity>
+        <FilterModal
+  visible={isFilterVisible}
+  onClose={() => setIsFilterVisible(false)}
+  onApply={(filters) => {
+    setActiveFilters(filters);
+    console.log("Applied filters:", filters);
+  }}
+/>
       </View>
     </SafeAreaView>
   );

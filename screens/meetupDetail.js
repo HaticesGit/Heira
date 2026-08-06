@@ -81,7 +81,14 @@ export default function MeetupDetailScreen({ navigation, route }) {
 
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => navigation.navigate("Profile")}
+                onPress={() =>
+                navigation.navigate("UserProfile", {
+                    user: {
+                    id: meetup.userId,
+                    username: meetup.username,
+                    },
+                })
+                }
               >
                 <Text style={styles.hostName}>
                   {meetup.username}
