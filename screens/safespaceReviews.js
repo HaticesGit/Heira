@@ -1,0 +1,438 @@
+import React from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+
+import ReviewCard from "../components/ReviewCard";
+import { COLORS } from "../constants/colors";
+
+const DEFAULT_SAFESPACE = {
+  id: "1",
+  name: "The Cozy Café",
+  rating: 4.8,
+  reviewCount: 32,
+  status: "Open now until 20:00",
+};
+
+const RATING_DISTRIBUTION = [
+  {
+    rating: 5,
+    amount: 26,
+  },
+  {
+    rating: 4,
+    amount: 5,
+  },
+  {
+    rating: 3,
+    amount: 1,
+  },
+  {
+    rating: 2,
+    amount: 0,
+  },
+  {
+    rating: 1,
+    amount: 0,
+  },
+];
+
+const REVIEWS = [
+  {
+    id: "1",
+    username: "CrazyKoala",
+    date: "2 days ago",
+    rating: 5,
+    text: "Felt really safe here. The staff is super kind and the place is well lit and welcoming.",
+  },
+  {
+    id: "2",
+    username: "SquishyChameleon",
+    date: "4 days ago",
+    rating: 5,
+    text: "A calm and friendly place. I would definitely come here again if I needed somewhere safe.",
+  },
+  {
+    id: "3",
+    username: "NightOwl",
+    date: "1 week ago",
+    rating: 4,
+    text: "The staff was helpful and made me feel comfortable. It was also easy to find.",
+  },
+  {
+    id: "4",
+    username: "BraveBunny",
+    date: "2 weeks ago",
+    rating: 3,
+    text: "A good place overall, although it was quite busy when I visited.",
+  },
+];
+
+export default function SafespaceReviewsScreen({ navigation, route }) {
+  const safespace = {
+    ...DEFAULT_SAFESPACE,
+    ...route.params?.safespace,
+  };
+
+  const highestRatingAmount = Math.max(
+    ...RATING_DISTRIBUTION.map((item) => item.amount)
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            activeOpacity={0.8}
+            onPress={() => navigation.goBack()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Ionicons name="arrow-back" size={29} color={COLORS.blue} />
+          </TouchableOpacity>
+
+          <Text style={styles.headerTitle}>All reviews</Text>
+
+          <View style={styles.headerPlaceholder} />
+        </View>
+
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          <View style={styles.safespaceOverview}>
+            <View style={styles.imagePlaceholder}>
+              <Ionicons name="image-outline" size={36} color={COLORS.span} />
+            </View>
+
+            <View style={styles.safespaceInfo}>
+              <Text style={styles.safespaceName}>{safespace.name}</Text>
+
+              <View style={styles.inlineRating}>
+                <Ionicons name="star" size={20} color={COLORS.yellow} />
+
+                <Text style={styles.inlineRatingNumber}>
+                  {safespace.rating}
+                </Text>
+
+                <Text style={styles.inlineReviewCount}>
+                  ({safespace.reviewCount} reviews)
+                </Text>
+              </View>
+
+              <Text style={styles.openStatus}>{safespace.status}</Text>
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.ratingSummary}>
+            <View style={styles.averageColumn}>
+              <Text style={styles.averageRating}>{safespace.rating}</Text>
+
+              <View style={styles.averageStars}>
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Ionicons
+                    key={star}
+                    name="star"
+                    size={18}
+                    color={COLORS.yellow}
+                  />
+                ))}
+              </View>
+
+              <Text style={styles.averageReviewCount}>
+                ({safespace.reviewCount} reviews)
+              </Text>
+            </View>
+
+            <View style={styles.distributionColumn}>
+              {RATING_DISTRIBUTION.map((item) => {
+                const percentage =
+                  highestRatingAmount > 0
+                    ? (item.amount / highestRatingAmount) * 100
+                    : 0;
+
+                return (
+                  <View key={item.rating} style={styles.distributionRow}>
+                    <Text style={styles.distributionNumber}>
+                      {item.rating}
+                    </Text>
+
+                    <Ionicons
+                      name="star"
+                      size={15}
+                      color={COLORS.yellow}
+                    />
+
+                    <View style={styles.barBackground}>
+                      <View
+                        style={[
+                          styles.barFill,
+                          {
+                            width: `${percentage}%`,
+                          },
+                        ]}
+                      />
+                    </View>
+
+                    <Text style={styles.distributionAmount}>
+                      {item.amount}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          <View style={styles.divider} />
+
+          <View style={styles.reviewsList}>
+            {REVIEWS.map((review) => (
+              <ReviewCard
+                key={review.id}
+                review={review}
+                onUserPress={() =>
+                  navigation.navigate("UserProfile", {
+                    user: {
+                      username: review.username,
+                    },
+                  })
+                }
+              />
+            ))}
+          </View>
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.addReviewButton}
+          activeOpacity={0.85}
+          onPress={() =>
+  navigation.navigate("AddReview", {
+    safespace,
+  })
+}
+          accessibilityRole="button"
+          accessibilityLabel="Add a review"
+        >
+          <Ionicons name="add" size={34} color={COLORS.offWhite} />
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+  },
+
+  header: {
+    minHeight: 72,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.midGray,
+  },
+
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.midGray,
+    backgroundColor: COLORS.offWhite,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: COLORS.offBlack,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+
+  headerTitle: {
+    color: COLORS.blue,
+    fontSize: 19,
+    fontWeight: "700",
+  },
+
+  headerPlaceholder: {
+    width: 44,
+  },
+
+  scrollView: {
+    flex: 1,
+  },
+
+  scrollContent: {
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 100,
+  },
+
+  safespaceOverview: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  imagePlaceholder: {
+    width: 108,
+    height: 82,
+    borderRadius: 9,
+    backgroundColor: COLORS.lightBlue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 14,
+  },
+
+  safespaceInfo: {
+    flex: 1,
+  },
+
+  safespaceName: {
+    color: COLORS.blue,
+    fontSize: 22,
+    fontWeight: "700",
+    marginBottom: 5,
+  },
+
+  inlineRating: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 9,
+  },
+
+  inlineRatingNumber: {
+    color: COLORS.blue,
+    fontSize: 15,
+    fontWeight: "700",
+    marginLeft: 6,
+  },
+
+  inlineReviewCount: {
+    color: COLORS.span,
+    fontSize: 13,
+    marginLeft: 5,
+  },
+
+  openStatus: {
+    color: COLORS.green,
+    fontSize: 14,
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.midGray,
+    marginBottom: 18,
+  },
+
+  ratingSummary: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 18,
+  },
+
+  averageColumn: {
+    width: "32%",
+    alignItems: "center",
+    paddingRight: 10,
+  },
+
+  averageRating: {
+    color: COLORS.blue,
+    fontSize: 27,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+
+  averageStars: {
+    flexDirection: "row",
+    marginBottom: 8,
+  },
+
+  averageReviewCount: {
+    color: COLORS.span,
+    fontSize: 13,
+  },
+
+  distributionColumn: {
+    flex: 1,
+  },
+
+  distributionRow: {
+    minHeight: 24,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  distributionNumber: {
+    width: 14,
+    color: COLORS.blue,
+    fontSize: 13,
+    textAlign: "right",
+    marginRight: 4,
+  },
+
+  barBackground: {
+    flex: 1,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: COLORS.lightBlue,
+    marginHorizontal: 8,
+    overflow: "hidden",
+  },
+
+  barFill: {
+    height: "100%",
+    borderRadius: 4,
+    backgroundColor: COLORS.blue,
+  },
+
+  distributionAmount: {
+    width: 24,
+    color: COLORS.blue,
+    fontSize: 13,
+    textAlign: "right",
+  },
+
+  reviewsList: {
+    paddingBottom: 15,
+  },
+
+  addReviewButton: {
+    position: "absolute",
+    right: 22,
+    bottom: 24,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    backgroundColor: COLORS.green,
+    alignItems: "center",
+    justifyContent: "center",
+
+    shadowColor: COLORS.offBlack,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 7,
+    elevation: 7,
+  },
+});
