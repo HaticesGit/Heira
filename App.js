@@ -17,6 +17,7 @@ import AddContactScreen from "./screens/addContact";
 import EditContactScreen from "./screens/editContact";
 import CreateMeetupScreen from "./screens/createMeetup";
 import MeetupDetailScreen from "./screens/meetupDetail";
+import CommentsScreen from "./screens/comments";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -134,6 +135,11 @@ export default function App() {
         <Stack.Screen
           name="MeetupDetail"
           component={MeetupDetailScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Comments"
+          component={CommentsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

@@ -164,7 +164,9 @@ export default function MeetupDetailScreen({ navigation, route }) {
             style={styles.commentsButton}
             activeOpacity={0.8}
             onPress={() =>
-              console.log("Comments pressed:", meetup.id)
+            navigation.navigate("Comments", {
+                meetup,
+            })
             }
             accessibilityRole="button"
             accessibilityLabel={`View ${meetup.commentCount} comments`}

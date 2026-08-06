@@ -57,8 +57,10 @@ export default function CommunityScreen({ navigation }) {
   };
 
   const handleOpenComments = (meetup) => {
-    console.log("Open comments:", meetup.id);
-  };
+  navigation.navigate("Comments", {
+    meetup,
+  });
+};
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
