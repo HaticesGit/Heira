@@ -24,6 +24,7 @@ export default function CommentsScreen({ navigation, route }) {
 
     const createdDate = new Date(createdAt);
     const now = new Date();
+
     const differenceInMinutes = Math.floor(
       (now - createdDate) / (1000 * 60)
     );
@@ -61,7 +62,16 @@ export default function CommentsScreen({ navigation, route }) {
 
     const { data, error } = await supabase
       .from("comments")
-      .select("*")
+      .select(`
+        id,
+        text,
+        created_at,
+        user_id,
+        username,
+        profiles (
+          username
+        )
+      `)
       .eq("meetup_id", meetup.id)
       .order("created_at", { ascending: true });
 
@@ -79,7 +89,13 @@ export default function CommentsScreen({ navigation, route }) {
 
     const formattedComments = data.map((comment) => ({
       id: comment.id.toString(),
-      username: comment.username,
+      userId: comment.user_id,
+
+      username:
+        comment.profiles?.username ||
+        comment.username ||
+        "Unknown user",
+
       time: formatCommentTime(comment.created_at),
       text: comment.text,
     }));
@@ -99,21 +115,51 @@ export default function CommentsScreen({ navigation, route }) {
       return;
     }
 
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      navigation.navigate("Login");
+      return;
+    }
+
+    const user = session.user;
+
     setSending(true);
 
-    const { data, error } = await supabase
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("username")
+      .eq("id", user.id)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching profile:", profileError);
+
+      Alert.alert(
+        "Could not post comment",
+        "Your profile could not be loaded."
+      );
+
+      setSending(false);
+      return;
+    }
+
+    const { error } = await supabase
       .from("comments")
       .insert([
         {
           meetup_id: meetup.id,
-          username: "fartingUnicorn",
+          user_id: user.id,
+
+          // We keep this temporarily so your existing
+          // username column can stay in the database.
+          username: profile.username,
+
           text: trimmedComment,
         },
-      ])
-      .select()
-      .single();
-
-    setSending(false);
+      ]);
 
     if (error) {
       console.error("Error posting comment:", error);
@@ -123,22 +169,24 @@ export default function CommentsScreen({ navigation, route }) {
         "Please try again."
       );
 
+      setSending(false);
       return;
     }
 
-    const comment = {
-      id: data.id.toString(),
-      username: data.username,
-      time: "Now",
-      text: data.text,
-    };
-
-    setComments((currentComments) => [
-      ...currentComments,
-      comment,
-    ]);
-
     setNewComment("");
+
+    await fetchComments();
+
+    setSending(false);
+  };
+
+  const handleOpenUser = (item) => {
+    navigation.navigate("UserProfile", {
+      user: {
+        id: item.userId,
+        username: item.username,
+      },
+    });
   };
 
   const renderComment = ({ item }) => (
@@ -146,13 +194,7 @@ export default function CommentsScreen({ navigation, route }) {
       <TouchableOpacity
         style={styles.avatar}
         activeOpacity={0.8}
-        onPress={() =>
-          navigation.navigate("UserProfile", {
-            user: {
-              username: item.username,
-            },
-          })
-        }
+        onPress={() => handleOpenUser(item)}
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.username}'s profile`}
       >
@@ -167,13 +209,7 @@ export default function CommentsScreen({ navigation, route }) {
         <View style={styles.commentHeader}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() =>
-              navigation.navigate("UserProfile", {
-                user: {
-                  username: item.username,
-                },
-              })
-            }
+            onPress={() => handleOpenUser(item)}
           >
             <Text style={styles.username}>
               {item.username}
