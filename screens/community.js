@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 
 import CommunityMeetupCard from "../components/CommunityMeetupCard";
 import FilterModal from "../components/FilterModal";
@@ -13,45 +14,6 @@ export default function CommunityScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
-
-  useEffect(() => {
-    fetchMeetups();
-  }, []);
-
-  const fetchMeetups = async () => {
-    setLoading(true);
-
-    const { data, error } = await supabase
-      .from("meetups")
-      .select("*")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching meetups:", error);
-
-      Alert.alert(
-        "Could not load meet-ups",
-        "Please check your internet connection and try again."
-      );
-
-      setLoading(false);
-      return;
-    }
-
-    const formattedMeetups = data.map((meetup) => ({
-      id: meetup.id.toString(),
-      username: meetup.username,
-      participantCount: meetup.participant_count,
-      location: meetup.location,
-      date: formatDate(meetup.meetup_date),
-      time: formatTime(meetup.meetup_time),
-      category: meetup.category,
-      commentCount: meetup.comment_count,
-    }));
-
-    setMeetups(formattedMeetups);
-    setLoading(false);
-  };
 
   const formatDate = (date) => {
     if (!date) return "";
@@ -66,6 +28,56 @@ export default function CommunityScreen({ navigation }) {
 
     return time.slice(0, 5);
   };
+
+  const fetchMeetups = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("meetups")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching meetups:", error);
+
+        Alert.alert(
+          "Could not load meet-ups",
+          "Please check your internet connection and try again."
+        );
+
+        return;
+      }
+
+      const formattedMeetups = data.map((meetup) => ({
+        id: meetup.id.toString(),
+        username: meetup.username,
+        participantCount: meetup.participant_count,
+        location: meetup.location,
+        date: formatDate(meetup.meetup_date),
+        time: formatTime(meetup.meetup_time),
+        category: meetup.category,
+        commentCount: meetup.comment_count,
+      }));
+
+      setMeetups(formattedMeetups);
+    } catch (error) {
+      console.error("Unexpected meetup error:", error);
+
+      Alert.alert(
+        "Something went wrong",
+        "The meet-ups could not be loaded."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchMeetups();
+    }, [fetchMeetups])
+  );
 
   const handleJoinMeetup = (meetup) => {
     console.log("Join meetup:", meetup.id);
@@ -95,10 +107,12 @@ export default function CommunityScreen({ navigation }) {
             style={styles.profileButton}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Profile")}
-            accessibilityRole="button"
-            accessibilityLabel="Open profile"
           >
-            <Ionicons name="person" size={23} color={COLORS.blue} />
+            <Ionicons
+              name="person"
+              size={23}
+              color={COLORS.blue}
+            />
           </TouchableOpacity>
         </View>
 
@@ -107,30 +121,37 @@ export default function CommunityScreen({ navigation }) {
             style={styles.searchContainer}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Search")}
-            accessibilityRole="button"
-            accessibilityLabel="Search users"
           >
             <Text style={styles.searchPlaceholder}>
               Search users
             </Text>
 
-            <Ionicons name="search" size={24} color={COLORS.blue} />
+            <Ionicons
+              name="search"
+              size={24}
+              color={COLORS.blue}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity
             style={styles.filterButton}
             activeOpacity={0.8}
             onPress={() => setIsFilterVisible(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Open community filters"
           >
-            <Ionicons name="options-outline" size={26} color={COLORS.blue} />
+            <Ionicons
+              name="options-outline"
+              size={26}
+              color={COLORS.blue}
+            />
           </TouchableOpacity>
         </View>
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.blue} />
+            <ActivityIndicator
+              size="large"
+              color={COLORS.blue}
+            />
 
             <Text style={styles.loadingText}>
               Loading meet-ups...
@@ -176,10 +197,12 @@ export default function CommunityScreen({ navigation }) {
           style={styles.addButton}
           activeOpacity={0.85}
           onPress={() => navigation.navigate("CreateMeetup")}
-          accessibilityRole="button"
-          accessibilityLabel="Create a new meetup"
         >
-          <Ionicons name="add" size={38} color={COLORS.offWhite} />
+          <Ionicons
+            name="add"
+            size={38}
+            color={COLORS.offWhite}
+          />
         </TouchableOpacity>
 
         <FilterModal
@@ -255,6 +278,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     flexDirection: "row",
     alignItems: "center",
+
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
@@ -332,6 +356,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
     alignItems: "center",
     justifyContent: "center",
+
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
