@@ -23,6 +23,7 @@ import UserProfileScreen from "./screens/userProfile";
 import SafespaceDetailScreen from "./screens/safespaceDetail";
 import SafespaceReviewsScreen from "./screens/safespaceReviews";
 import AddReviewScreen from "./screens/addReview";
+import LoginScreen from "./screens/login";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -170,6 +171,11 @@ export default function App() {
         <Stack.Screen
           name="AddReview"
           component={AddReviewScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Login"
+          component={LoginScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
