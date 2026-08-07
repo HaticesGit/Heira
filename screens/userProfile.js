@@ -7,48 +7,109 @@ import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
 
-const DEFAULT_USER = {
-  id: "1",
-  username: "SquishyChameleon",
-  followers: 42,
-  following: 67,
-  isVerified: true,
-  bio: "I love festivals, concerts and meeting new people.",
-};
-
-const USER_MEETUPS = [
-  {
-    id: "1",
-    location: "Tomorrowland, Boom",
-    date: "29/07/26",
-    time: "14:00",
-    username: "SquishyChameleon",
-    category: "Festival",
-    participantCount: 12,
-    commentCount: 4,
-  },
-  {
-    id: "2",
-    location: "Brussels Central",
-    date: "02/08/26",
-    time: "21:30",
-    username: "SquishyChameleon",
-    category: "Night out",
-    participantCount: 8,
-    commentCount: 6,
-  },
-];
-
 export default function UserProfileScreen({ navigation, route }) {
-  const user = {
-    ...DEFAULT_USER,
-    ...route.params?.user,
-  };
+  const userId = route.params?.user?.id;
+
+  const [user, setUser] = useState({
+    id: userId,
+    username: route.params?.user?.username || "",
+    isVerified: false,
+    bio: "",
+  });
+
+  const [userMeetups, setUserMeetups] = useState([]);
 
   const [isFollowing, setIsFollowing] = useState(false);
 const [currentUserId, setCurrentUserId] = useState(null);
 const [followerCount, setFollowerCount] = useState(0);
 const [followingCount, setFollowingCount] = useState(0);
+
+useEffect(() => {
+  const fetchUserData = async () => {
+    if (!userId) {
+      return;
+    }
+
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, username, bio, is_verified")
+      .eq("id", userId)
+      .single();
+
+    if (profileError) {
+      console.error("Error fetching user profile:", profileError);
+      return;
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data: meetupData, error: meetupError } = await supabase
+      .from("meetups")
+      .select("*")
+      .eq("creator_id", userId)
+      .gte("meetup_date", today)
+      .order("meetup_date", { ascending: true });
+
+    if (meetupError) {
+      console.error("Error fetching user meetups:", meetupError);
+      return;
+    }
+
+    const meetupIds = meetupData.map((meetup) => meetup.id);
+
+    const participantCounts = {};
+    const commentCounts = {};
+
+    if (meetupIds.length > 0) {
+      const { data: participantData } = await supabase
+        .from("meetup_participants")
+        .select("meetup_id")
+        .in("meetup_id", meetupIds);
+
+      const { data: commentData } = await supabase
+        .from("comments")
+        .select("meetup_id")
+        .in("meetup_id", meetupIds);
+
+      participantData?.forEach((participant) => {
+        participantCounts[participant.meetup_id] =
+          (participantCounts[participant.meetup_id] || 0) + 1;
+      });
+
+      commentData?.forEach((comment) => {
+        commentCounts[comment.meetup_id] =
+          (commentCounts[comment.meetup_id] || 0) + 1;
+      });
+    }
+
+    const formattedMeetups = meetupData.map((meetup) => {
+      const [year, month, day] = meetup.meetup_date.split("-");
+
+      return {
+        id: meetup.id.toString(),
+        creatorId: meetup.creator_id,
+        location: meetup.location,
+        date: `${day}/${month}/${year.slice(-2)}`,
+        time: meetup.meetup_time.slice(0, 5),
+        username: profileData.username,
+        category: meetup.category,
+        participantCount: participantCounts[meetup.id] || 0,
+        commentCount: commentCounts[meetup.id] || 0,
+      };
+    });
+
+    setUser({
+      id: profileData.id,
+      username: profileData.username,
+      isVerified: profileData.is_verified || false,
+      bio: profileData.bio || "",
+    });
+
+    setUserMeetups(formattedMeetups);
+  };
+
+  fetchUserData();
+}, [userId]);
 
 useEffect(() => {
   const fetchFollowData = async () => {
@@ -240,8 +301,8 @@ useEffect(() => {
 
           <Text style={styles.sectionTitle}>Future meet-ups</Text>
 
-          {USER_MEETUPS.length > 0 ? (
-            USER_MEETUPS.map((meetup) => (
+          {userMeetups.length > 0 ? (
+            userMeetups.map((meetup) => (
               <MeetupCard
                 key={meetup.id}
                 meetup={meetup}
