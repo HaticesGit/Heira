@@ -41,12 +41,6 @@ export default function CommunityScreen({ navigation }) {
 
     if (meetupError) {
       console.error("Error fetching meetups:", meetupError);
-
-      Alert.alert(
-        "Could not load meet-ups",
-        "Please check your internet connection and try again."
-      );
-
       return;
     }
 
@@ -55,45 +49,60 @@ export default function CommunityScreen({ navigation }) {
       .select("meetup_id");
 
     if (commentError) {
-      console.error("Error fetching comment counts:", commentError);
-
-      Alert.alert(
-        "Could not load comments",
-        "Please try again."
-      );
-
+      console.error("Error fetching comments:", commentError);
       return;
     }
+
+    const { data: participantData, error: participantError } = await supabase
+      .from("meetup_participants")
+      .select("meetup_id, user_id");
+
+    if (participantError) {
+      console.error("Error fetching participants:", participantError);
+      return;
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
     const commentCounts = {};
 
     commentData.forEach((comment) => {
-      const meetupId = comment.meetup_id;
+      commentCounts[comment.meetup_id] =
+        (commentCounts[comment.meetup_id] || 0) + 1;
+    });
 
-      commentCounts[meetupId] =
-        (commentCounts[meetupId] || 0) + 1;
+    const participantCounts = {};
+    const userJoinedMeetups = {};
+
+    participantData.forEach((participant) => {
+      participantCounts[participant.meetup_id] =
+        (participantCounts[participant.meetup_id] || 0) + 1;
+
+      if (
+        session?.user &&
+        participant.user_id === session.user.id
+      ) {
+        userJoinedMeetups[participant.meetup_id] = true;
+      }
     });
 
     const formattedMeetups = meetupData.map((meetup) => ({
       id: meetup.id.toString(),
       username: meetup.username,
-      participantCount: meetup.participant_count,
+      participantCount: participantCounts[meetup.id] || 0,
       location: meetup.location,
       date: formatDate(meetup.meetup_date),
       time: formatTime(meetup.meetup_time),
       category: meetup.category,
-
       commentCount: commentCounts[meetup.id] || 0,
     }));
 
     setMeetups(formattedMeetups);
+    setJoinedMeetups(userJoinedMeetups);
   } catch (error) {
     console.error("Unexpected meetup error:", error);
-
-    Alert.alert(
-      "Something went wrong",
-      "The meet-ups could not be loaded."
-    );
   } finally {
     setLoading(false);
   }
@@ -144,6 +153,8 @@ export default function CommunityScreen({ navigation }) {
       ...current,
       [meetup.id]: false,
     }));
+
+    await fetchMeetups();
   } else {
     const { error: insertError } = await supabase
       .from("meetup_participants")
@@ -163,6 +174,8 @@ export default function CommunityScreen({ navigation }) {
       ...current,
       [meetup.id]: true,
     }));
+
+    await fetchMeetups();
   }
 };
 
