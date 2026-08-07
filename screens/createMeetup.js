@@ -1,15 +1,17 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
 const CATEGORIES = [
   "Festival",
   "Concert",
   "Night out",
   "Public transport",
+  "Shopping",
   "Other",
 ];
 
@@ -19,8 +21,38 @@ export default function CreateMeetupScreen({ navigation }) {
   const [time, setTime] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handlePostMeetup = () => {
+  const formatDateForSupabase = (dateValue) => {
+    const parts = dateValue.split("/");
+
+    if (parts.length !== 3) {
+      return null;
+    }
+
+    const [day, month, year] = parts;
+
+    const fullYear =
+      year.length === 2
+        ? `20${year}`
+        : year;
+
+    return `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
+  };
+
+  const formatTimeForSupabase = (timeValue) => {
+    const parts = timeValue.split(":");
+
+    if (parts.length !== 2) {
+      return null;
+    }
+
+    const [hours, minutes] = parts;
+
+    return `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00`;
+  };
+
+  const handlePostMeetup = async () => {
     const trimmedLocation = location.trim();
     const trimmedDate = date.trim();
     const trimmedTime = time.trim();
@@ -35,18 +67,65 @@ export default function CreateMeetupScreen({ navigation }) {
         "Missing information",
         "Please fill in the location, date, time and category."
       );
+
       return;
     }
 
-    const newMeetup = {
-      id: Date.now().toString(),
-      location: trimmedLocation,
-      date: trimmedDate,
-      time: trimmedTime,
-      category: selectedCategory,
-    };
+    const databaseDate =
+      formatDateForSupabase(trimmedDate);
 
-    console.log("New meetup:", newMeetup);
+    const databaseTime =
+      formatTimeForSupabase(trimmedTime);
+
+    if (!databaseDate) {
+      Alert.alert(
+        "Invalid date",
+        "Please enter the date as DD/MM/YY."
+      );
+
+      return;
+    }
+
+    if (!databaseTime) {
+      Alert.alert(
+        "Invalid time",
+        "Please enter the time as HH:MM."
+      );
+
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("meetups")
+      .insert([
+        {
+          username: "fartingUnicorn",
+          participant_count: 0,
+          location: trimmedLocation,
+          meetup_date: databaseDate,
+          meetup_time: databaseTime,
+          category: selectedCategory,
+          comment_count: 0,
+        },
+      ])
+      .select();
+
+    setLoading(false);
+
+    if (error) {
+      console.error("Error creating meetup:", error);
+
+      Alert.alert(
+        "Something went wrong",
+        "Your meet-up could not be posted. Please try again."
+      );
+
+      return;
+    }
+
+    console.log("Meet-up created:", data);
 
     Alert.alert(
       "Meet-up posted",
@@ -68,8 +147,6 @@ export default function CreateMeetupScreen({ navigation }) {
             style={styles.backButton}
             activeOpacity={0.8}
             onPress={() => navigation.goBack()}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
           >
             <Ionicons
               name="arrow-back"
@@ -78,14 +155,14 @@ export default function CreateMeetupScreen({ navigation }) {
             />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Make a meet-up</Text>
+          <Text style={styles.headerTitle}>
+            Make a meet-up
+          </Text>
 
           <TouchableOpacity
             style={styles.profileButton}
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Profile")}
-            accessibilityRole="button"
-            accessibilityLabel="Open profile"
           >
             <Ionicons
               name="person"
@@ -112,7 +189,6 @@ export default function CreateMeetupScreen({ navigation }) {
                 onChangeText={setLocation}
                 placeholder="Destinationstreet 27, 1000 Brussels"
                 placeholderTextColor={COLORS.span}
-                accessibilityLabel="Meet-up location"
               />
             </FormField>
 
@@ -129,7 +205,6 @@ export default function CreateMeetupScreen({ navigation }) {
                 placeholder="30/03/26"
                 placeholderTextColor={COLORS.span}
                 keyboardType="numbers-and-punctuation"
-                accessibilityLabel="Meet-up date"
               />
             </FormField>
 
@@ -146,7 +221,6 @@ export default function CreateMeetupScreen({ navigation }) {
                 placeholder="16:00"
                 placeholderTextColor={COLORS.span}
                 keyboardType="numbers-and-punctuation"
-                accessibilityLabel="Meet-up time"
               />
             </FormField>
 
@@ -160,23 +234,29 @@ export default function CreateMeetupScreen({ navigation }) {
                   color={COLORS.green}
                 />
 
-                <Text style={styles.label}>Category</Text>
+                <Text style={styles.label}>
+                  Category
+                </Text>
               </View>
 
               <TouchableOpacity
                 style={styles.selectInput}
                 activeOpacity={0.8}
-                onPress={() => setIsCategoryOpen((current) => !current)}
-                accessibilityRole="button"
-                accessibilityLabel="Choose meet-up category"
+                onPress={() =>
+                  setIsCategoryOpen(
+                    (current) => !current
+                  )
+                }
               >
                 <Text
                   style={[
                     styles.selectText,
-                    !selectedCategory && styles.placeholderText,
+                    !selectedCategory &&
+                      styles.placeholderText,
                   ]}
                 >
-                  {selectedCategory || "Choose Category"}
+                  {selectedCategory ||
+                    "Choose Category"}
                 </Text>
 
                 <Ionicons
@@ -202,11 +282,16 @@ export default function CreateMeetupScreen({ navigation }) {
                         setIsCategoryOpen(false);
                       }}
                     >
-                      <Text style={styles.categoryOptionText}>
+                      <Text
+                        style={
+                          styles.categoryOptionText
+                        }
+                      >
                         {category}
                       </Text>
 
-                      {selectedCategory === category ? (
+                      {selectedCategory ===
+                      category ? (
                         <Ionicons
                           name="checkmark"
                           size={20}
@@ -226,7 +311,8 @@ export default function CreateMeetupScreen({ navigation }) {
                 />
 
                 <Text style={styles.infoText}>
-                  Choosing a category helps others find your meetup easier
+                  Choosing a category helps
+                  others find your meetup easier
                 </Text>
               </View>
             </View>
@@ -238,6 +324,7 @@ export default function CreateMeetupScreen({ navigation }) {
             style={styles.cancelButton}
             activeOpacity={0.8}
             onPress={() => navigation.goBack()}
+            disabled={loading}
           >
             <Text style={styles.cancelButtonText}>
               Cancel
@@ -245,13 +332,23 @@ export default function CreateMeetupScreen({ navigation }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.postButton}
+            style={[
+              styles.postButton,
+              loading && styles.postButtonDisabled,
+            ]}
             activeOpacity={0.8}
             onPress={handlePostMeetup}
+            disabled={loading}
           >
-            <Text style={styles.postButtonText}>
-              Post meet-up
-            </Text>
+            {loading ? (
+              <ActivityIndicator
+                color={COLORS.offWhite}
+              />
+            ) : (
+              <Text style={styles.postButtonText}>
+                Post meet-up
+              </Text>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -269,7 +366,9 @@ function FormField({ label, icon, children }) {
           color={COLORS.green}
         />
 
-        <Text style={styles.label}>{label}</Text>
+        <Text style={styles.label}>
+          {label}
+        </Text>
       </View>
 
       <View style={styles.inputWrapper}>
@@ -322,7 +421,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: COLORS.lightgreen,
+    backgroundColor: COLORS.lightBlue,
     borderWidth: 2,
     borderColor: COLORS.offWhite,
     alignItems: "center",
@@ -345,7 +444,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.midGray,
     backgroundColor: COLORS.offWhite,
     padding: 14,
-
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
@@ -490,6 +588,10 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.green,
     alignItems: "center",
     justifyContent: "center",
+  },
+
+  postButtonDisabled: {
+    opacity: 0.65,
   },
 
   postButtonText: {
