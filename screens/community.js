@@ -12,6 +12,7 @@ import { supabase } from "../lib/supabase";
 export default function CommunityScreen({ navigation }) {
   const [meetups, setMeetups] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [joinedMeetups, setJoinedMeetups] = useState({});
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
 
@@ -106,25 +107,63 @@ export default function CommunityScreen({ navigation }) {
 
   const handleJoinMeetup = async (meetup) => {
   const {
-    data: { user },
-    error,
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
-  if (error) {
-    console.error("Error getting user:", error);
+  if (!session) {
+    navigation.navigate("Login");
     return;
   }
 
-  if (!user) {
-    Alert.alert(
-      "Sign in required",
-      "You need to sign in before you can join a meet-up."
-    );
+  const user = session.user;
+
+  const { data: existingParticipant, error: checkError } = await supabase
+    .from("meetup_participants")
+    .select("id")
+    .eq("meetup_id", meetup.id)
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (checkError) {
+    console.error("Error checking participant:", checkError);
     return;
   }
 
-  console.log("Meetup ID:", meetup.id);
-  console.log("User ID:", user.id);
+  if (existingParticipant) {
+    const { error: deleteError } = await supabase
+      .from("meetup_participants")
+      .delete()
+      .eq("id", existingParticipant.id);
+
+    if (deleteError) {
+      console.error("Error leaving meetup:", deleteError);
+      return;
+    }
+
+    setJoinedMeetups((current) => ({
+      ...current,
+      [meetup.id]: false,
+    }));
+  } else {
+    const { error: insertError } = await supabase
+      .from("meetup_participants")
+      .insert([
+        {
+          meetup_id: meetup.id,
+          user_id: user.id,
+        },
+      ]);
+
+    if (insertError) {
+      console.error("Error joining meetup:", insertError);
+      return;
+    }
+
+    setJoinedMeetups((current) => ({
+      ...current,
+      [meetup.id]: true,
+    }));
+  }
 };
 
   const handleOpenComments = (meetup) => {
@@ -212,6 +251,7 @@ export default function CommunityScreen({ navigation }) {
                 <CommunityMeetupCard
                   key={meetup.id}
                   meetup={meetup}
+                  isJoined={joinedMeetups[meetup.id] || false}
                   onPress={() => handleOpenMeetup(meetup)}
                   onCommentsPress={() => handleOpenComments(meetup)}
                   onJoinPress={() => handleJoinMeetup(meetup)}

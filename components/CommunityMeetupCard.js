@@ -1,26 +1,22 @@
 import React from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
 
 export default function CommunityMeetupCard({
   meetup,
+  isJoined,
   onPress,
   onCommentsPress,
   onJoinPress,
 }) {
   return (
     <TouchableOpacity
-  style={styles.card}
-  activeOpacity={0.85}
-  onPress={onPress}
->
+      style={styles.card}
+      activeOpacity={0.85}
+      onPress={onPress}
+    >
       <View style={styles.userRow}>
         <View style={styles.avatar}>
           <Ionicons
@@ -121,16 +117,33 @@ export default function CommunityMeetupCard({
           activeOpacity={0.7}
           onPress={onJoinPress}
           accessibilityRole="button"
-          accessibilityLabel={`Join meetup at ${meetup.location}`}
+          accessibilityLabel={
+            isJoined
+              ? `Leave meetup at ${meetup.location}`
+              : `Join meetup at ${meetup.location}`
+          }
         >
-          <Text style={styles.actionText}>
-            I’ll be there
+          <Text
+            style={[
+              styles.actionText,
+              isJoined && styles.joinedText,
+            ]}
+          >
+            {isJoined ? "Joined" : "I’ll be there"}
           </Text>
 
           <Ionicons
-            name="checkmark-circle-outline"
+            name={
+              isJoined
+                ? "checkmark-circle"
+                : "checkmark-circle-outline"
+            }
             size={22}
-            color={COLORS.blue}
+            color={
+              isJoined
+                ? COLORS.green
+                : COLORS.blue
+            }
           />
         </TouchableOpacity>
       </View>
@@ -169,7 +182,7 @@ const styles = StyleSheet.create({
     width: 42,
     height: 42,
     borderRadius: 21,
-    backgroundColor: COLORS.lightgreen,
+    backgroundColor: COLORS.lightBlue,
     alignItems: "center",
     justifyContent: "center",
     marginRight: 10,
@@ -263,5 +276,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     marginHorizontal: 7,
     fontWeight: "500",
+  },
+
+  joinedText: {
+    color: COLORS.green,
+    fontWeight: "700",
   },
 });
