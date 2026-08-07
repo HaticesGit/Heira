@@ -30,48 +30,73 @@ export default function CommunityScreen({ navigation }) {
   };
 
   const fetchMeetups = useCallback(async () => {
-    setLoading(true);
+  setLoading(true);
 
-    try {
-      const { data, error } = await supabase
-        .from("meetups")
-        .select("*")
-        .order("created_at", { ascending: false });
+  try {
+    const { data: meetupData, error: meetupError } = await supabase
+      .from("meetups")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-      if (error) {
-        console.error("Error fetching meetups:", error);
-
-        Alert.alert(
-          "Could not load meet-ups",
-          "Please check your internet connection and try again."
-        );
-
-        return;
-      }
-
-      const formattedMeetups = data.map((meetup) => ({
-        id: meetup.id.toString(),
-        username: meetup.username,
-        participantCount: meetup.participant_count,
-        location: meetup.location,
-        date: formatDate(meetup.meetup_date),
-        time: formatTime(meetup.meetup_time),
-        category: meetup.category,
-        commentCount: meetup.comment_count,
-      }));
-
-      setMeetups(formattedMeetups);
-    } catch (error) {
-      console.error("Unexpected meetup error:", error);
+    if (meetupError) {
+      console.error("Error fetching meetups:", meetupError);
 
       Alert.alert(
-        "Something went wrong",
-        "The meet-ups could not be loaded."
+        "Could not load meet-ups",
+        "Please check your internet connection and try again."
       );
-    } finally {
-      setLoading(false);
+
+      return;
     }
-  }, []);
+
+    const { data: commentData, error: commentError } = await supabase
+      .from("comments")
+      .select("meetup_id");
+
+    if (commentError) {
+      console.error("Error fetching comment counts:", commentError);
+
+      Alert.alert(
+        "Could not load comments",
+        "Please try again."
+      );
+
+      return;
+    }
+
+    const commentCounts = {};
+
+    commentData.forEach((comment) => {
+      const meetupId = comment.meetup_id;
+
+      commentCounts[meetupId] =
+        (commentCounts[meetupId] || 0) + 1;
+    });
+
+    const formattedMeetups = meetupData.map((meetup) => ({
+      id: meetup.id.toString(),
+      username: meetup.username,
+      participantCount: meetup.participant_count,
+      location: meetup.location,
+      date: formatDate(meetup.meetup_date),
+      time: formatTime(meetup.meetup_time),
+      category: meetup.category,
+
+      commentCount: commentCounts[meetup.id] || 0,
+    }));
+
+    setMeetups(formattedMeetups);
+  } catch (error) {
+    console.error("Unexpected meetup error:", error);
+
+    Alert.alert(
+      "Something went wrong",
+      "The meet-ups could not be loaded."
+    );
+  } finally {
+    setLoading(false);
+  }
+}, []);
 
   useFocusEffect(
     useCallback(() => {
