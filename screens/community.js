@@ -104,9 +104,28 @@ export default function CommunityScreen({ navigation }) {
     }, [fetchMeetups])
   );
 
-  const handleJoinMeetup = (meetup) => {
-    console.log("Join meetup:", meetup.id);
-  };
+  const handleJoinMeetup = async (meetup) => {
+  const {
+    data: { user },
+    error,
+  } = await supabase.auth.getUser();
+
+  if (error) {
+    console.error("Error getting user:", error);
+    return;
+  }
+
+  if (!user) {
+    Alert.alert(
+      "Sign in required",
+      "You need to sign in before you can join a meet-up."
+    );
+    return;
+  }
+
+  console.log("Meetup ID:", meetup.id);
+  console.log("User ID:", user.id);
+};
 
   const handleOpenComments = (meetup) => {
     navigation.navigate("Comments", {
