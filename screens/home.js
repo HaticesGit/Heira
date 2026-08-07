@@ -3,39 +3,89 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } 
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
-
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
 import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
 
 export default function HomeScreen({ navigation }) {
   const alarmSoundRef = useRef(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-  const meetups = [
-    {
-      id: "1",
-      location: "Ergensstraat 12, Mechelen",
-      date: "14/07/26",
-      time: "18:00",
-    },
-    {
-      id: "2",
-      location: "IJzerenleen 36, Mechelen",
-      date: "27/07/26",
-      time: "14:30",
-    },
-    {
-      id: "3",
-      location: "Slenderstraat 9, Molenhoek",
-      date: "05/08/26",
-      time: "16:00",
-    },
-    {
-      id: "4",
-      location: "Woudstraat 1, Lier",
-      date: "19/08/26",
-      time: "04:00",
-    },
-  ];
+  const [meetups, setMeetups] = useState([]);
+  const formatDate = (date) => {
+  if (!date) return "";
+
+  const [year, month, day] = date.split("-");
+
+  return `${day}/${month}/${year.slice(-2)}`;
+};
+
+const formatTime = (time) => {
+  if (!time) return "";
+
+  return time.slice(0, 5);
+};
+
+const fetchFutureMeetups = async () => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    setMeetups([]);
+    return;
+  }
+
+  const { data: participantData, error: participantError } = await supabase
+    .from("meetup_participants")
+    .select("meetup_id")
+    .eq("user_id", session.user.id);
+
+  if (participantError) {
+    console.error("Error fetching joined meetups:", participantError);
+    return;
+  }
+
+  const meetupIds = participantData.map(
+    (participant) => participant.meetup_id
+  );
+
+  if (meetupIds.length === 0) {
+    setMeetups([]);
+    return;
+  }
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: meetupData, error: meetupError } = await supabase
+    .from("meetups")
+    .select("*")
+    .in("id", meetupIds)
+    .gte("meetup_date", today)
+    .order("meetup_date", { ascending: true });
+
+  if (meetupError) {
+    console.error("Error fetching future meetups:", meetupError);
+    return;
+  }
+
+  const formattedMeetups = meetupData.map((meetup) => ({
+    id: meetup.id.toString(),
+    creatorId: meetup.creator_id,
+    username: meetup.username,
+    location: meetup.location,
+    date: formatDate(meetup.meetup_date),
+    time: formatTime(meetup.meetup_time),
+    category: meetup.category,
+  }));
+
+  setMeetups(formattedMeetups);
+};
+useFocusEffect(
+  React.useCallback(() => {
+    fetchFutureMeetups();
+  }, [])
+);
 
   useEffect(() => {
     return () => {
