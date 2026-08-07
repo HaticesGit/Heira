@@ -53,91 +53,119 @@ export default function CreateMeetupScreen({ navigation }) {
   };
 
   const handlePostMeetup = async () => {
-    const trimmedLocation = location.trim();
-    const trimmedDate = date.trim();
-    const trimmedTime = time.trim();
+  const trimmedLocation = location.trim();
+  const trimmedDate = date.trim();
+  const trimmedTime = time.trim();
 
-    if (
-      !trimmedLocation ||
-      !trimmedDate ||
-      !trimmedTime ||
-      !selectedCategory
-    ) {
-      Alert.alert(
-        "Missing information",
-        "Please fill in the location, date, time and category."
-      );
+  if (
+    !trimmedLocation ||
+    !trimmedDate ||
+    !trimmedTime ||
+    !selectedCategory
+  ) {
+    Alert.alert(
+      "Missing information",
+      "Please fill in the location, date, time and category."
+    );
 
-      return;
-    }
+    return;
+  }
 
-    const databaseDate =
-      formatDateForSupabase(trimmedDate);
+  const databaseDate =
+    formatDateForSupabase(trimmedDate);
 
-    const databaseTime =
-      formatTimeForSupabase(trimmedTime);
+  const databaseTime =
+    formatTimeForSupabase(trimmedTime);
 
-    if (!databaseDate) {
-      Alert.alert(
-        "Invalid date",
-        "Please enter the date as DD/MM/YY."
-      );
+  if (!databaseDate) {
+    Alert.alert(
+      "Invalid date",
+      "Please enter the date as DD/MM/YY."
+    );
 
-      return;
-    }
+    return;
+  }
 
-    if (!databaseTime) {
-      Alert.alert(
-        "Invalid time",
-        "Please enter the time as HH:MM."
-      );
+  if (!databaseTime) {
+    Alert.alert(
+      "Invalid time",
+      "Please enter the time as HH:MM."
+    );
 
-      return;
-    }
+    return;
+  }
 
-    setLoading(true);
+  // Check if someone is logged in
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    const { data, error } = await supabase
-      .from("meetups")
-      .insert([
-        {
-          username: "fartingUnicorn",
-          participant_count: 0,
-          location: trimmedLocation,
-          meetup_date: databaseDate,
-          meetup_time: databaseTime,
-          category: selectedCategory,
-          comment_count: 0,
-        },
-      ])
-      .select();
+  if (!session) {
+    navigation.navigate("Login");
+    return;
+  }
 
-    setLoading(false);
+  // Get the logged-in user's profile
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("username")
+    .eq("id", session.user.id)
+    .single();
 
-    if (error) {
-      console.error("Error creating meetup:", error);
-
-      Alert.alert(
-        "Something went wrong",
-        "Your meet-up could not be posted. Please try again."
-      );
-
-      return;
-    }
-
-    console.log("Meet-up created:", data);
+  if (profileError) {
+    console.error("Error fetching profile:", profileError);
 
     Alert.alert(
-      "Meet-up posted",
-      "Your meet-up was posted successfully.",
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]
+      "Could not create meet-up",
+      "Your profile could not be loaded."
     );
-  };
+
+    return;
+  }
+
+  setLoading(true);
+
+  const { data, error } = await supabase
+    .from("meetups")
+    .insert([
+      {
+        username: profile.username,
+        participant_count: 0,
+        location: trimmedLocation,
+        meetup_date: databaseDate,
+        meetup_time: databaseTime,
+        category: selectedCategory,
+        comment_count: 0,
+      },
+    ])
+    .select();
+
+  setLoading(false);
+
+  if (error) {
+    console.error("Error creating meetup:", error);
+
+    Alert.alert(
+      "Something went wrong",
+      "Your meet-up could not be posted. Please try again."
+    );
+
+    return;
+  }
+
+  console.log("Meet-up created:", data);
+
+  Alert.alert(
+    "Meet-up posted",
+    "Your meet-up was posted successfully.",
+    [
+      {
+        text: "OK",
+        onPress: () => navigation.goBack(),
+      },
+    ]
+  );
+};
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
