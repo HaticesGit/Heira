@@ -1,36 +1,264 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React, { useCallback, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { COLORS } from "../constants/colors";
-
-const DEFAULT_MEETUP = {
-  id: "1",
-  title: "Tomorrowland",
-  username: "SquishyChameleon",
-  location: "Tomorrowland, Boom, Belgium",
-  date: "Tuesday, 29 July 2026",
-  time: "14:00",
-  category: "Festival",
-  participantCount: 12,
-  commentCount: 4,
-};
+import { supabase } from "../lib/supabase";
 
 export default function MeetupDetailScreen({ navigation, route }) {
-  const meetup = {
-    ...DEFAULT_MEETUP,
-    ...route.params?.meetup,
-  };
+  const meetupId = route.params?.meetup?.id;
 
+  const [meetup, setMeetup] = useState(route.params?.meetup || null);
+  const [loading, setLoading] = useState(true);
   const [isJoined, setIsJoined] = useState(false);
+  const [joinLoading, setJoinLoading] = useState(false);
 
-  const toggleJoin = () => {
-    setIsJoined((currentValue) => !currentValue);
+  const formatDate = (date) => {
+    if (!date) return "";
+
+    const dateObject = new Date(`${date}T00:00:00`);
+
+    return dateObject.toLocaleDateString("en-GB", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
   };
 
-  const displayedParticipantCount =
-    meetup.participantCount + (isJoined ? 1 : 0);
+  const formatTime = (time) => {
+    if (!time) return "";
+
+    return time.slice(0, 5);
+  };
+
+  const fetchMeetupDetails = useCallback(async () => {
+    if (!meetupId) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { data: meetupData, error: meetupError } = await supabase
+        .from("meetups")
+        .select("*")
+        .eq("id", meetupId)
+        .single();
+
+      if (meetupError) {
+        console.error("Error fetching meetup:", meetupError);
+
+        Alert.alert(
+          "Could not load meet-up",
+          "Please try again."
+        );
+
+        return;
+      }
+
+      let creatorUsername = meetupData.username || "Unknown user";
+
+      if (meetupData.creator_id) {
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", meetupData.creator_id)
+          .single();
+
+        if (!profileError && profileData) {
+          creatorUsername = profileData.username;
+        }
+      }
+
+      const { count: participantCount, error: participantError } =
+        await supabase
+          .from("meetup_participants")
+          .select("*", {
+            count: "exact",
+            head: true,
+          })
+          .eq("meetup_id", meetupId);
+
+      if (participantError) {
+        console.error(
+          "Error fetching participant count:",
+          participantError
+        );
+      }
+
+      const { count: commentCount, error: commentError } =
+        await supabase
+          .from("comments")
+          .select("*", {
+            count: "exact",
+            head: true,
+          })
+          .eq("meetup_id", meetupId);
+
+      if (commentError) {
+        console.error(
+          "Error fetching comment count:",
+          commentError
+        );
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      let joined = false;
+
+      if (session) {
+        const { data: participant, error: joinedError } =
+          await supabase
+            .from("meetup_participants")
+            .select("id")
+            .eq("meetup_id", meetupId)
+            .eq("user_id", session.user.id)
+            .maybeSingle();
+
+        if (joinedError) {
+          console.error(
+            "Error checking joined state:",
+            joinedError
+          );
+        } else {
+          joined = !!participant;
+        }
+      }
+
+      setMeetup({
+        id: meetupData.id.toString(),
+        creatorId: meetupData.creator_id,
+        username: creatorUsername,
+        title: meetupData.location,
+        location: meetupData.location,
+        date: formatDate(meetupData.meetup_date),
+        time: formatTime(meetupData.meetup_time),
+        category: meetupData.category,
+        participantCount: participantCount || 0,
+        commentCount: commentCount || 0,
+      });
+
+      setIsJoined(joined);
+    } catch (error) {
+      console.error(
+        "Unexpected meetup detail error:",
+        error
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, [meetupId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchMeetupDetails();
+    }, [fetchMeetupDetails])
+  );
+
+  const handleJoinMeetup = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      navigation.navigate("Login");
+      return;
+    }
+
+    setJoinLoading(true);
+
+    try {
+      const { data: existingParticipant, error: checkError } =
+        await supabase
+          .from("meetup_participants")
+          .select("id")
+          .eq("meetup_id", meetupId)
+          .eq("user_id", session.user.id)
+          .maybeSingle();
+
+      if (checkError) {
+        console.error(
+          "Error checking participant:",
+          checkError
+        );
+        return;
+      }
+
+      if (existingParticipant) {
+        const { error: deleteError } = await supabase
+          .from("meetup_participants")
+          .delete()
+          .eq("id", existingParticipant.id);
+
+        if (deleteError) {
+          console.error(
+            "Error leaving meetup:",
+            deleteError
+          );
+          return;
+        }
+      } else {
+        const { error: insertError } = await supabase
+          .from("meetup_participants")
+          .insert([
+            {
+              meetup_id: meetupId,
+              user_id: session.user.id,
+            },
+          ]);
+
+        if (insertError) {
+          console.error(
+            "Error joining meetup:",
+            insertError
+          );
+          return;
+        }
+      }
+
+      await fetchMeetupDetails();
+    } finally {
+      setJoinLoading(false);
+    }
+  };
+
+  if (loading && !meetup) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingScreen}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.blue}
+          />
+
+          <Text style={styles.loadingText}>
+            Loading meet-up...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!meetup) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingScreen}>
+          <Text style={styles.loadingText}>
+            Meet-up not found.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const visibleParticipantAvatars = Math.min(
+    meetup.participantCount,
+    5
+  );
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -41,13 +269,10 @@ export default function MeetupDetailScreen({ navigation, route }) {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.hero}>
-
             <TouchableOpacity
               style={styles.backButton}
               activeOpacity={0.8}
               onPress={() => navigation.goBack()}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
             >
               <Ionicons
                 name="arrow-back"
@@ -64,30 +289,43 @@ export default function MeetupDetailScreen({ navigation, route }) {
           </View>
 
           <View style={styles.content}>
-            <View style={styles.avatar}>
+            <TouchableOpacity
+              style={styles.avatar}
+              activeOpacity={0.8}
+              onPress={() =>
+                navigation.navigate("UserProfile", {
+                  user: {
+                    id: meetup.creatorId,
+                    username: meetup.username,
+                  },
+                })
+              }
+            >
               <Ionicons
                 name="person"
                 size={39}
                 color={COLORS.blue}
               />
-            </View>
+            </TouchableOpacity>
 
             <Text style={styles.title}>
               {meetup.title || meetup.location}
             </Text>
 
             <View style={styles.hostRow}>
-              <Text style={styles.hostLabel}>Hosted by </Text>
+              <Text style={styles.hostLabel}>
+                Hosted by{" "}
+              </Text>
 
               <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() =>
-                navigation.navigate("UserProfile", {
+                  navigation.navigate("UserProfile", {
                     user: {
-                    id: meetup.userId,
-                    username: meetup.username,
+                      id: meetup.creatorId,
+                      username: meetup.username,
                     },
-                })
+                  })
                 }
               >
                 <Text style={styles.hostName}>
@@ -120,10 +358,11 @@ export default function MeetupDetailScreen({ navigation, route }) {
               style={styles.participantsSection}
               activeOpacity={0.75}
               onPress={() =>
-                console.log("Participants pressed:", meetup.id)
+                console.log(
+                  "Participants pressed:",
+                  meetup.id
+                )
               }
-              accessibilityRole="button"
-              accessibilityLabel={`View ${displayedParticipantCount} participants`}
             >
               <View style={styles.participantTitleRow}>
                 <Ionicons
@@ -133,35 +372,52 @@ export default function MeetupDetailScreen({ navigation, route }) {
                 />
 
                 <Text style={styles.participantTitle}>
-                  {displayedParticipantCount} people joined
+                  {meetup.participantCount}{" "}
+                  {meetup.participantCount === 1
+                    ? "person"
+                    : "people"}{" "}
+                  joined
                 </Text>
               </View>
 
-              <View style={styles.avatarRow}>
-                {[1, 2, 3, 4, 5].map((avatar) => (
-                  <View
-                    key={avatar}
-                    style={[
-                      styles.participantAvatar,
-                      { marginLeft: avatar === 1 ? 0 : -8 },
-                    ]}
-                  >
-                    <Ionicons
-                      name="person"
-                      size={19}
-                      color={COLORS.blue}
-                    />
-                  </View>
-                ))}
+              {meetup.participantCount > 0 ? (
+                <View style={styles.avatarRow}>
+                  {Array.from({
+                    length: visibleParticipantAvatars,
+                  }).map((_, index) => (
+                    <View
+                      key={index}
+                      style={[
+                        styles.participantAvatar,
+                        {
+                          marginLeft:
+                            index === 0 ? 0 : -8,
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="person"
+                        size={19}
+                        color={COLORS.blue}
+                      />
+                    </View>
+                  ))}
 
-                {displayedParticipantCount > 5 ? (
-                  <View style={styles.moreParticipants}>
-                    <Text style={styles.moreParticipantsText}>
-                      +{displayedParticipantCount - 5}
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
+                  {meetup.participantCount > 5 ? (
+                    <View style={styles.moreParticipants}>
+                      <Text
+                        style={styles.moreParticipantsText}
+                      >
+                        +{meetup.participantCount - 5}
+                      </Text>
+                    </View>
+                  ) : null}
+                </View>
+              ) : (
+                <Text style={styles.noParticipantsText}>
+                  No one has joined yet.
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -171,12 +427,10 @@ export default function MeetupDetailScreen({ navigation, route }) {
             style={styles.commentsButton}
             activeOpacity={0.8}
             onPress={() =>
-            navigation.navigate("Comments", {
+              navigation.navigate("Comments", {
                 meetup,
-            })
+              })
             }
-            accessibilityRole="button"
-            accessibilityLabel={`View ${meetup.commentCount} comments`}
           >
             <Ionicons
               name="chatbubble-outline"
@@ -195,25 +449,33 @@ export default function MeetupDetailScreen({ navigation, route }) {
               isJoined && styles.joinButtonActive,
             ]}
             activeOpacity={0.8}
-            onPress={toggleJoin}
-            accessibilityRole="button"
-            accessibilityLabel={
-              isJoined ? "Leave meetup" : "Join meetup"
-            }
+            onPress={handleJoinMeetup}
+            disabled={joinLoading}
           >
-            <Ionicons
-              name={
-                isJoined
-                  ? "checkmark-circle"
-                  : "checkmark-circle-outline"
-              }
-              size={22}
-              color={COLORS.offWhite}
-            />
+            {joinLoading ? (
+              <ActivityIndicator
+                size="small"
+                color={COLORS.offWhite}
+              />
+            ) : (
+              <>
+                <Ionicons
+                  name={
+                    isJoined
+                      ? "checkmark-circle"
+                      : "checkmark-circle-outline"
+                  }
+                  size={22}
+                  color={COLORS.offWhite}
+                />
 
-            <Text style={styles.joinButtonText}>
-              {isJoined ? "Joined" : "I’ll be there"}
-            </Text>
+                <Text style={styles.joinButtonText}>
+                  {isJoined
+                    ? "Joined"
+                    : "I’ll be there"}
+                </Text>
+              </>
+            )}
           </TouchableOpacity>
         </View>
       </View>
@@ -248,6 +510,19 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.offWhite,
   },
 
+  loadingScreen: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: COLORS.span,
+    fontSize: 15,
+    marginTop: 10,
+  },
+
   scrollView: {
     flex: 1,
   },
@@ -256,13 +531,13 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
   },
 
-    hero: {
-        height: 180,
-        backgroundColor: COLORS.lightBlue,
-        position: "relative",
-        alignItems: "center",
-        justifyContent: "center",
-    },
+  hero: {
+    height: 180,
+    backgroundColor: COLORS.lightBlue,
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "center",
+  },
 
   backButton: {
     position: "absolute",
@@ -401,6 +676,12 @@ const styles = StyleSheet.create({
     color: COLORS.span,
     fontSize: 14,
     fontWeight: "600",
+  },
+
+  noParticipantsText: {
+    color: COLORS.span,
+    fontSize: 14,
+    marginLeft: 35,
   },
 
   footer: {
