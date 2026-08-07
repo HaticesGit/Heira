@@ -129,6 +129,7 @@ export default function CreateMeetupScreen({ navigation }) {
     .from("meetups")
     .insert([
       {
+        creator_id: session.user.id,
         username: profile.username,
         participant_count: 0,
         location: trimmedLocation,
