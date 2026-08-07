@@ -2,10 +2,20 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
+import { supabase } from "../lib/supabase";
 import { COLORS } from "../constants/colors";
 
 export default function ProfileScreen({ navigation }) {
+  const handleLogout = async () => {
+  const { error } = await supabase.auth.signOut();
+
+  if (error) {
+    console.error("Error signing out:", error);
+    return;
+  }
+
+  navigation.navigate("Login");
+};
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
@@ -42,6 +52,9 @@ export default function ProfileScreen({ navigation }) {
                 size={27}
                 color={COLORS.blue}
               />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={handleLogout}>
+              <Text>Log out</Text>
             </TouchableOpacity>
           </View>
 
