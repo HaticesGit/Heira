@@ -24,6 +24,7 @@ import SafespaceDetailScreen from "./screens/safespaceDetail";
 import SafespaceReviewsScreen from "./screens/safespaceReviews";
 import AddReviewScreen from "./screens/addReview";
 import LoginScreen from "./screens/login";
+import SignUpScreen from "./screens/signUp";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -176,6 +177,11 @@ export default function App() {
         <Stack.Screen
           name="Login"
           component={LoginScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SignUp"
+          component={SignUpScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
