@@ -10,6 +10,8 @@ import { COLORS } from "../constants/colors";
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [followerCount, setFollowerCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -33,12 +35,36 @@ export default function ProfileScreen({ navigation }) {
     if (error) {
       console.error("Error fetching profile:", error);
 
-      Alert.alert("Could not load profile", "Please try again.");
+      Alert.alert(
+        "Could not load profile",
+        "Please try again."
+      );
+
       setLoading(false);
       return;
     }
 
+    const { count: followers, error: followersError } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("following_id", session.user.id);
+
+    if (followersError) {
+      console.error("Error fetching followers:", followersError);
+    }
+
+    const { count: following, error: followingError } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("follower_id", session.user.id);
+
+    if (followingError) {
+      console.error("Error fetching following:", followingError);
+    }
+
     setProfile(data);
+    setFollowerCount(followers || 0);
+    setFollowingCount(following || 0);
     setLoading(false);
   }, []);
 
@@ -194,7 +220,7 @@ export default function ProfileScreen({ navigation }) {
                 }
               >
                 <Text style={styles.statNumber}>
-                  0
+                  {followerCount}
                 </Text>
 
                 <Text style={styles.statLabel}>
@@ -212,7 +238,7 @@ export default function ProfileScreen({ navigation }) {
                 }
               >
                 <Text style={styles.statNumber}>
-                  0
+                  {followingCount}
                 </Text>
 
                 <Text style={styles.statLabel}>
