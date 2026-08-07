@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
 const DEFAULT_USER = {
   id: "1",
@@ -45,12 +46,95 @@ export default function UserProfileScreen({ navigation, route }) {
   };
 
   const [isFollowing, setIsFollowing] = useState(false);
+const [currentUserId, setCurrentUserId] = useState(null);
+const [followerCount, setFollowerCount] = useState(0);
+const [followingCount, setFollowingCount] = useState(0);
 
-  const toggleFollow = () => {
-    setIsFollowing((currentValue) => !currentValue);
+useEffect(() => {
+  const fetchFollowData = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    const loggedInUserId = session?.user?.id || null;
+
+    setCurrentUserId(loggedInUserId);
+
+    const { count: followers } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("following_id", user.id);
+
+    const { count: following } = await supabase
+      .from("follows")
+      .select("*", { count: "exact", head: true })
+      .eq("follower_id", user.id);
+
+    setFollowerCount(followers || 0);
+    setFollowingCount(following || 0);
+
+    if (!loggedInUserId || loggedInUserId === user.id) {
+      setIsFollowing(false);
+      return;
+    }
+
+    const { data: follow } = await supabase
+      .from("follows")
+      .select("id")
+      .eq("follower_id", loggedInUserId)
+      .eq("following_id", user.id)
+      .maybeSingle();
+
+    setIsFollowing(!!follow);
   };
 
-  const displayedFollowers = user.followers + (isFollowing ? 1 : 0);
+  fetchFollowData();
+}, [user.id]);
+
+
+  const toggleFollow = async () => {
+  if (!currentUserId) {
+    navigation.navigate("Login");
+    return;
+  }
+
+  if (currentUserId === user.id) {
+    return;
+  }
+
+  if (isFollowing) {
+    const { error } = await supabase
+      .from("follows")
+      .delete()
+      .eq("follower_id", currentUserId)
+      .eq("following_id", user.id);
+
+    if (error) {
+      console.error("Error unfollowing user:", error);
+      return;
+    }
+
+    setIsFollowing(false);
+    setFollowerCount((current) => Math.max(current - 1, 0));
+  } else {
+    const { error } = await supabase
+      .from("follows")
+      .insert([
+        {
+          follower_id: currentUserId,
+          following_id: user.id,
+        },
+      ]);
+
+    if (error) {
+      console.error("Error following user:", error);
+      return;
+    }
+
+    setIsFollowing(true);
+    setFollowerCount((current) => current + 1);
+  }
+};
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -101,7 +185,7 @@ export default function UserProfileScreen({ navigation, route }) {
                 activeOpacity={0.7}
                 onPress={() => console.log("Followers pressed")}
               >
-                <Text style={styles.statNumber}>{displayedFollowers}</Text>
+                <Text style={styles.statNumber}>{followerCount}</Text>
                 <Text style={styles.statLabel}>Followers</Text>
               </TouchableOpacity>
 
@@ -112,44 +196,46 @@ export default function UserProfileScreen({ navigation, route }) {
                 activeOpacity={0.7}
                 onPress={() => console.log("Following pressed")}
               >
-                <Text style={styles.statNumber}>{user.following}</Text>
+                <Text style={styles.statNumber}>{followingCount}</Text>
                 <Text style={styles.statLabel}>Following</Text>
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity
-              style={[
-                styles.followButton,
-                isFollowing && styles.followButtonActive,
-              ]}
-              activeOpacity={0.8}
-              onPress={toggleFollow}
-              accessibilityRole="button"
-              accessibilityLabel={
-                isFollowing
-                  ? `Unfollow ${user.username}`
-                  : `Follow ${user.username}`
-              }
-            >
-              <Ionicons
-                name={isFollowing ? "checkmark" : "person-add-outline"}
-                size={21}
-                color={
-                  isFollowing
-                    ? COLORS.green
-                    : COLORS.offWhite
-                }
-              />
+            {currentUserId !== user.id ? (
+  <TouchableOpacity
+    style={[
+      styles.followButton,
+      isFollowing && styles.followButtonActive,
+    ]}
+    activeOpacity={0.8}
+    onPress={toggleFollow}
+    accessibilityRole="button"
+    accessibilityLabel={
+      isFollowing
+        ? `Unfollow ${user.username}`
+        : `Follow ${user.username}`
+    }
+  >
+    <Ionicons
+      name={isFollowing ? "checkmark" : "person-add-outline"}
+      size={21}
+      color={
+        isFollowing
+          ? COLORS.green
+          : COLORS.offWhite
+      }
+    />
 
-              <Text
-                style={[
-                  styles.followButtonText,
-                  isFollowing && styles.followButtonTextActive,
-                ]}
-              >
-                {isFollowing ? "Following" : "Follow"}
-              </Text>
-            </TouchableOpacity>
+    <Text
+      style={[
+        styles.followButtonText,
+        isFollowing && styles.followButtonTextActive,
+      ]}
+    >
+      {isFollowing ? "Following" : "Follow"}
+    </Text>
+  </TouchableOpacity>
+) : null}
           </View>
 
           <Text style={styles.sectionTitle}>Future meet-ups</Text>
