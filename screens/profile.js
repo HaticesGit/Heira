@@ -1,23 +1,124 @@
-import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import React, { useCallback, useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+
 import { supabase } from "../lib/supabase";
 import { COLORS } from "../constants/colors";
 
 export default function ProfileScreen({ navigation }) {
-  const handleLogout = async () => {
-  const { error } = await supabase.auth.signOut();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  if (error) {
-    console.error("Error signing out:", error);
-    return;
+  const fetchProfile = useCallback(async () => {
+    setLoading(true);
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) {
+      setProfile(null);
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("id, username, bio, is_verified, profileIMG_url")
+      .eq("id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile:", error);
+
+      Alert.alert("Could not load profile", "Please try again.");
+      setLoading(false);
+      return;
+    }
+
+    setProfile(data);
+    setLoading(false);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchProfile();
+    }, [fetchProfile])
+  );
+
+  const handleLogout = async () => {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Error signing out:", error);
+
+      Alert.alert(
+        "Could not log out",
+        "Please try again."
+      );
+
+      return;
+    }
+
+    navigation.navigate("Login");
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator
+            size="large"
+            color={COLORS.blue}
+          />
+
+          <Text style={styles.loadingText}>
+            Loading profile...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
-  navigation.navigate("Login");
-};
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.guestContainer}>
+          <Ionicons
+            name="person-outline"
+            size={55}
+            color={COLORS.blue}
+          />
+
+          <Text style={styles.guestTitle}>
+            You're using Heira as a guest
+          </Text>
+
+          <Text style={styles.guestText}>
+            Sign in to view your profile and account settings.
+          </Text>
+
+          <TouchableOpacity
+            style={styles.signInButton}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("Login")}
+          >
+            <Text style={styles.signInButtonText}>
+              Sign in
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={["top"]}
+    >
       <View style={styles.screen}>
         <ScrollView
           contentContainerStyle={styles.scrollContent}
@@ -53,9 +154,6 @@ export default function ProfileScreen({ navigation }) {
                 color={COLORS.blue}
               />
             </TouchableOpacity>
-            <TouchableOpacity onPress={handleLogout}>
-              <Text>Log out</Text>
-            </TouchableOpacity>
           </View>
 
           <View style={styles.profileContent}>
@@ -69,24 +167,39 @@ export default function ProfileScreen({ navigation }) {
 
             <View style={styles.usernameRow}>
               <Text style={styles.username}>
-                @fartingUnicorn
+                @{profile.username}
               </Text>
 
-              <Ionicons
-                name="shield-checkmark"
-                size={21}
-                color={COLORS.blue}
-              />
+              {profile.is_verified ? (
+                <Ionicons
+                  name="shield-checkmark"
+                  size={21}
+                  color={COLORS.blue}
+                />
+              ) : null}
             </View>
+
+            {profile.bio ? (
+              <Text style={styles.bio}>
+                {profile.bio}
+              </Text>
+            ) : null}
 
             <View style={styles.statsRow}>
               <TouchableOpacity
                 style={styles.statItem}
                 activeOpacity={0.7}
-                onPress={() => console.log("Followers pressed")}
+                onPress={() =>
+                  console.log("Followers pressed")
+                }
               >
-                <Text style={styles.statNumber}>42</Text>
-                <Text style={styles.statLabel}>Followers</Text>
+                <Text style={styles.statNumber}>
+                  0
+                </Text>
+
+                <Text style={styles.statLabel}>
+                  Followers
+                </Text>
               </TouchableOpacity>
 
               <View style={styles.statsDivider} />
@@ -94,17 +207,26 @@ export default function ProfileScreen({ navigation }) {
               <TouchableOpacity
                 style={styles.statItem}
                 activeOpacity={0.7}
-                onPress={() => console.log("Following pressed")}
+                onPress={() =>
+                  console.log("Following pressed")
+                }
               >
-                <Text style={styles.statNumber}>67</Text>
-                <Text style={styles.statLabel}>Following</Text>
+                <Text style={styles.statNumber}>
+                  0
+                </Text>
+
+                <Text style={styles.statLabel}>
+                  Following
+                </Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
               style={styles.recordingsButton}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("VoiceRecorder")}
+              onPress={() =>
+                navigation.navigate("VoiceRecorder")
+              }
             >
               <Ionicons
                 name="pulse-outline"
@@ -114,6 +236,22 @@ export default function ProfileScreen({ navigation }) {
 
               <Text style={styles.recordingsButtonText}>
                 My recordings
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.logoutButton}
+              activeOpacity={0.8}
+              onPress={handleLogout}
+            >
+              <Ionicons
+                name="log-out-outline"
+                size={20}
+                color={COLORS.red}
+              />
+
+              <Text style={styles.logoutButtonText}>
+                Log out
               </Text>
             </TouchableOpacity>
           </View>
@@ -219,7 +357,9 @@ export default function ProfileScreen({ navigation }) {
           <TouchableOpacity
             style={styles.upgradeButton}
             activeOpacity={0.8}
-            onPress={() => console.log("Upgrade pressed")}
+            onPress={() =>
+              console.log("Upgrade pressed")
+            }
           >
             <Ionicons
               name="diamond"
@@ -248,6 +388,59 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.offWhite,
   },
 
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: COLORS.span,
+    fontSize: 15,
+    marginTop: 10,
+  },
+
+  guestContainer: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 35,
+  },
+
+  guestTitle: {
+    color: COLORS.blue,
+    fontSize: 21,
+    fontWeight: "700",
+    marginTop: 15,
+    marginBottom: 7,
+    textAlign: "center",
+  },
+
+  guestText: {
+    color: COLORS.span,
+    fontSize: 15,
+    lineHeight: 21,
+    textAlign: "center",
+    marginBottom: 22,
+  },
+
+  signInButton: {
+    width: "75%",
+    minHeight: 50,
+    borderRadius: 8,
+    backgroundColor: COLORS.blue,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  signInButtonText: {
+    color: COLORS.offWhite,
+    fontSize: 16,
+    fontWeight: "700",
+  },
+
   scrollContent: {
     paddingHorizontal: 18,
     paddingTop: 14,
@@ -270,6 +463,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: COLORS.midGray,
+
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
@@ -295,12 +489,13 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: COLORS.lightgreen,
+    backgroundColor: COLORS.lightBlue,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
-    borderColor: COLORS.green,
+    borderColor: COLORS.blue,
     marginBottom: 14,
+
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
@@ -314,7 +509,7 @@ const styles = StyleSheet.create({
   usernameRow: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 18,
+    marginBottom: 10,
   },
 
   username: {
@@ -322,6 +517,15 @@ const styles = StyleSheet.create({
     fontSize: 23,
     fontWeight: "700",
     marginRight: 5,
+  },
+
+  bio: {
+    maxWidth: 300,
+    color: COLORS.span,
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+    marginBottom: 18,
   },
 
   statsRow: {
@@ -371,6 +575,22 @@ const styles = StyleSheet.create({
     marginLeft: 7,
   },
 
+  logoutButton: {
+    marginTop: 12,
+    minHeight: 42,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  logoutButtonText: {
+    color: COLORS.red,
+    fontSize: 14,
+    fontWeight: "600",
+    marginLeft: 6,
+  },
+
   sectionTitle: {
     color: COLORS.blue,
     fontSize: 21,
@@ -386,6 +606,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.offWhite,
     padding: 12,
     marginBottom: 12,
+
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
