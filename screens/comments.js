@@ -1,57 +1,136 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
-
-const INITIAL_COMMENTS = [
-  {
-    id: "1",
-    username: "SquishyChameleon",
-    time: "5m ago",
-    text: "So excited! can’t wait to see you there!",
-  },
-  {
-    id: "2",
-    username: "SquishyChameleon",
-    time: "5m ago",
-    text: "So excited! can’t wait to see you there!",
-  },
-  {
-    id: "3",
-    username: "SquishyChameleon",
-    time: "5m ago",
-    text: "So excited! can’t wait to see you there!",
-  },
-  {
-    id: "4",
-    username: "SquishyChameleon",
-    time: "5m ago",
-    text: "So excited! can’t wait to see you there!",
-  },
-];
+import { supabase } from "../lib/supabase";
 
 export default function CommentsScreen({ navigation, route }) {
   const meetup = route.params?.meetup;
-  const [comments, setComments] = useState(INITIAL_COMMENTS);
+
+  const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
   const isSendDisabled = useMemo(
-    () => newComment.trim().length === 0,
-    [newComment]
+    () => newComment.trim().length === 0 || sending,
+    [newComment, sending]
   );
 
-  const handleSendComment = () => {
+  const formatCommentTime = (createdAt) => {
+    if (!createdAt) return "";
+
+    const createdDate = new Date(createdAt);
+    const now = new Date();
+    const differenceInMinutes = Math.floor(
+      (now - createdDate) / (1000 * 60)
+    );
+
+    if (differenceInMinutes < 1) {
+      return "Now";
+    }
+
+    if (differenceInMinutes < 60) {
+      return `${differenceInMinutes}m ago`;
+    }
+
+    const differenceInHours = Math.floor(
+      differenceInMinutes / 60
+    );
+
+    if (differenceInHours < 24) {
+      return `${differenceInHours}h ago`;
+    }
+
+    const differenceInDays = Math.floor(
+      differenceInHours / 24
+    );
+
+    return `${differenceInDays}d ago`;
+  };
+
+  const fetchComments = async () => {
+    if (!meetup?.id) {
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+
+    const { data, error } = await supabase
+      .from("comments")
+      .select("*")
+      .eq("meetup_id", meetup.id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching comments:", error);
+
+      Alert.alert(
+        "Could not load comments",
+        "Please try again."
+      );
+
+      setLoading(false);
+      return;
+    }
+
+    const formattedComments = data.map((comment) => ({
+      id: comment.id.toString(),
+      username: comment.username,
+      time: formatCommentTime(comment.created_at),
+      text: comment.text,
+    }));
+
+    setComments(formattedComments);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchComments();
+  }, [meetup?.id]);
+
+  const handleSendComment = async () => {
     const trimmedComment = newComment.trim();
 
-    if (!trimmedComment) return;
+    if (!trimmedComment || !meetup?.id) {
+      return;
+    }
+
+    setSending(true);
+
+    const { data, error } = await supabase
+      .from("comments")
+      .insert([
+        {
+          meetup_id: meetup.id,
+          username: "fartingUnicorn",
+          text: trimmedComment,
+        },
+      ])
+      .select()
+      .single();
+
+    setSending(false);
+
+    if (error) {
+      console.error("Error posting comment:", error);
+
+      Alert.alert(
+        "Could not post comment",
+        "Please try again."
+      );
+
+      return;
+    }
 
     const comment = {
-      id: Date.now().toString(),
-      username: "fartingUnicorn",
+      id: data.id.toString(),
+      username: data.username,
       time: "Now",
-      text: trimmedComment,
+      text: data.text,
     };
 
     setComments((currentComments) => [
@@ -67,7 +146,13 @@ export default function CommentsScreen({ navigation, route }) {
       <TouchableOpacity
         style={styles.avatar}
         activeOpacity={0.8}
-        onPress={() => navigation.navigate("Profile")}
+        onPress={() =>
+          navigation.navigate("UserProfile", {
+            user: {
+              username: item.username,
+            },
+          })
+        }
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.username}'s profile`}
       >
@@ -82,7 +167,13 @@ export default function CommentsScreen({ navigation, route }) {
         <View style={styles.commentHeader}>
           <TouchableOpacity
             activeOpacity={0.7}
-            onPress={() => navigation.navigate("Profile")}
+            onPress={() =>
+              navigation.navigate("UserProfile", {
+                user: {
+                  username: item.username,
+                },
+              })
+            }
           >
             <Text style={styles.username}>
               {item.username}
@@ -143,15 +234,45 @@ export default function CommentsScreen({ navigation, route }) {
           {comments.length} comments
         </Text>
 
-        <FlatList
-          data={comments}
-          keyExtractor={(item) => item.id}
-          renderItem={renderComment}
-          style={styles.list}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator
+              size="large"
+              color={COLORS.blue}
+            />
+
+            <Text style={styles.loadingText}>
+              Loading comments...
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={comments}
+            keyExtractor={(item) => item.id}
+            renderItem={renderComment}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={48}
+                  color={COLORS.span}
+                />
+
+                <Text style={styles.emptyTitle}>
+                  No comments yet
+                </Text>
+
+                <Text style={styles.emptyText}>
+                  Be the first to leave a comment.
+                </Text>
+              </View>
+            }
+          />
+        )}
 
         <View style={styles.inputArea}>
           <View style={styles.currentUserAvatar}>
@@ -185,15 +306,22 @@ export default function CommentsScreen({ navigation, route }) {
               accessibilityRole="button"
               accessibilityLabel="Send comment"
             >
-              <Ionicons
-                name="send-outline"
-                size={22}
-                color={
-                  isSendDisabled
-                    ? COLORS.span
-                    : COLORS.blue
-                }
-              />
+              {sending ? (
+                <ActivityIndicator
+                  size="small"
+                  color={COLORS.blue}
+                />
+              ) : (
+                <Ionicons
+                  name="send-outline"
+                  size={22}
+                  color={
+                    isSendDisabled
+                      ? COLORS.span
+                      : COLORS.blue
+                  }
+                />
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -270,11 +398,24 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
+  loadingContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  loadingText: {
+    color: COLORS.span,
+    fontSize: 14,
+    marginTop: 10,
+  },
+
   list: {
     flex: 1,
   },
 
   listContent: {
+    flexGrow: 1,
     paddingHorizontal: 20,
     paddingBottom: 20,
   },
@@ -336,6 +477,28 @@ const styles = StyleSheet.create({
     color: COLORS.blue,
     fontSize: 15,
     lineHeight: 21,
+  },
+
+  emptyState: {
+    flex: 1,
+    minHeight: 280,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 30,
+  },
+
+  emptyTitle: {
+    color: COLORS.blue,
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 5,
+  },
+
+  emptyText: {
+    color: COLORS.span,
+    fontSize: 14,
+    textAlign: "center",
   },
 
   inputArea: {
