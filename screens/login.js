@@ -1,14 +1,5 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-  Image,
-} from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, ActivityIndicator, Image, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -55,8 +46,10 @@ export default function LoginScreen({ navigation }) {
   };
 
   const handleGuest = () => {
-    navigation.goBack();
-  };
+  navigation.navigate("MainTabs", {
+    screen: "HomeTab",
+  });
+};
 
   return (
     <SafeAreaView
