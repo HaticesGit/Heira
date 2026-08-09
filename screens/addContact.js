@@ -1,55 +1,68 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity,TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
 export default function AddContactScreen({ navigation }) {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
 
-  const handleAddContact = () => {
-    const trimmedName = name.trim();
-    const trimmedPhoneNumber = phoneNumber.trim();
+  const handleAddContact = async () => {
+  const trimmedName = name.trim();
+  const trimmedPhoneNumber = phoneNumber.trim();
 
-    if (!trimmedName || !trimmedPhoneNumber) {
-      Alert.alert(
-        "Missing information",
-        "Please enter both a name and phone number."
-      );
-      return;
-    }
+  if (!trimmedName || !trimmedPhoneNumber) {
+    Alert.alert(
+      "Missing information",
+      "Please enter both a name and phone number."
+    );
+    return;
+  }
 
-    const newContact = {
-      id: Date.now().toString(),
-      name: trimmedName,
-      phone: trimmedPhoneNumber,
-    };
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
 
-    console.log("New contact:", newContact);
+  if (!session) {
+    navigation.navigate("Login");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("emergency_contacts")
+    .insert([
+      {
+        user_id: session.user.id,
+        name: trimmedName,
+        phone_number: trimmedPhoneNumber,
+      },
+    ]);
+
+  if (error) {
+    console.error("Error adding emergency contact:", error);
 
     Alert.alert(
-      "Contact added",
-      `${trimmedName} was added as an emergency contact.`,
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]
+      "Could not add contact",
+      "Please try again."
     );
-  };
+
+    return;
+  }
+
+  Alert.alert(
+    "Contact added",
+    `${trimmedName} was added as an emergency contact.`,
+    [
+      {
+        text: "OK",
+        onPress: () => navigation.goBack(),
+      },
+    ]
+  );
+};
 
   const handleAddPhoto = () => {
     console.log("Add photo pressed");

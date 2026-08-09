@@ -1,19 +1,10 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  TextInput,
-  StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-} from "react-native";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
 export default function EditContactScreen({ navigation, route }) {
   const contact = route.params?.contact ?? {
@@ -23,60 +14,86 @@ export default function EditContactScreen({ navigation, route }) {
   };
 
   const [name, setName] = useState(contact.name);
-  const [phoneNumber, setPhoneNumber] = useState(contact.phone);
+  const [phoneNumber, setPhoneNumber] = useState(contact.phone_number);
 
-  const handleConfirm = () => {
-    const trimmedName = name.trim();
-    const trimmedPhoneNumber = phoneNumber.trim();
+  const handleConfirm = async () => {
+const trimmedName = name.trim();
+const trimmedPhoneNumber = phoneNumber.trim();
 
-    if (!trimmedName || !trimmedPhoneNumber) {
-      Alert.alert(
-        "Missing information",
-        "Please enter both a name and phone number."
-      );
-      return;
-    }
+if (!trimmedName || !trimmedPhoneNumber) {
+  Alert.alert(
+    "Missing information",
+    "Please enter both a name and phone number."
+  );
+  return;
+}
 
-    const updatedContact = {
-      ...contact,
-      name: trimmedName,
-      phone: trimmedPhoneNumber,
-    };
+const { error } = await supabase
+  .from("emergency_contacts")
+  .update({
+    name: trimmedName,
+    phone_number: trimmedPhoneNumber,
+  })
+  .eq("id", contact.id);
 
-    console.log("Updated contact:", updatedContact);
+if (error) {
+  console.error("Error updating emergency contact:", error);
 
-    Alert.alert(
-      "Contact updated",
-      `${trimmedName} was updated successfully.`,
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
-  };
+  Alert.alert(
+    "Could not update contact",
+    "Please try again."
+  );
+
+  return;
+}
+
+Alert.alert(
+  "Contact updated",
+  `${trimmedName} was updated successfully.`,
+  [
+    {
+      text: "OK",
+      onPress: () => navigation.goBack(),
+    },
+  ]
+);
+};
 
   const handleDelete = () => {
-    Alert.alert(
-      "Delete contact",
-      `Are you sure you want to delete ${contact.name}?`,
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () => {
-            console.log("Deleted contact:", contact.id);
-            navigation.goBack();
-          },
-        },
-      ]
-    );
-  };
+Alert.alert(
+"Delete contact",
+`Are you sure you want to delete ${contact.name}?`,
+[
+{
+text: "Cancel",
+style: "cancel",
+},
+{
+text: "Delete",
+style: "destructive",
+onPress: async () => {
+const { error } = await supabase
+  .from("emergency_contacts")
+  .delete()
+  .eq("id", contact.id);
+
+if (error) {
+  console.error("Error deleting emergency contact:", error);
+
+  Alert.alert(
+    "Could not delete contact",
+    "Please try again."
+  );
+
+  return;
+}
+
+navigation.goBack();
+},
+},
+]
+);
+};
 
   const handleChangePhoto = () => {
     console.log("Change photo pressed");

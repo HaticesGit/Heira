@@ -1,36 +1,46 @@
-import React, { useState } from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Switch, } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
 import ContactCard from "../components/ContactCard";
-
-const CONTACTS = [
-  {
-    id: "1",
-    name: "Eren Puckles",
-    phone: "+32 4 89 24 99 54",
-  },
-  {
-    id: "2",
-    name: "Aleyna Cilek",
-    phone: "+32 4 73 24 90 64",
-  },
-  {
-    id: "3",
-    name: "Aylin Bear",
-    phone: "+32 4 64 79 31 22",
-  },
-  {
-    id: "4",
-    name: "Lena Pucket",
-    phone: "+32 4 22 24 03 79",
-  },
-];
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
 
 export default function EmergencyContactsScreen({ navigation }) {
   const [emergencyEnabled, setEmergencyEnabled] = useState(false);
+  const [contacts, setContacts] = useState([]);
+
+  const fetchContacts = useCallback(async () => {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    setContacts([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("emergency_contacts")
+    .select("id, name, phone_number, relationship")
+    .eq("user_id", session.user.id)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching emergency contacts:", error);
+    return;
+  }
+
+  setContacts(data || []);
+}, []);
+
+useFocusEffect(
+  useCallback(() => {
+    fetchContacts();
+  }, [fetchContacts])
+);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -66,18 +76,18 @@ export default function EmergencyContactsScreen({ navigation }) {
             This is limited to 5 people with your current plan
           </Text>
 
-          {CONTACTS.map((contact) => (
-            <ContactCard
-  key={contact.id}
-  name={contact.name}
-  phone={contact.phone}
-  onPress={() =>
-    navigation.navigate("EditContact", {
-      contact,
-    })
-  }
-/>
-          ))}
+          {contacts.map((contact) => (
+          <ContactCard
+            key={contact.id}
+            name={contact.name}
+            phone={contact.phone_number}
+            onPress={() =>
+              navigation.navigate("EditContact", {
+                contact,
+              })
+            }
+          />
+        ))}
 
           <TouchableOpacity
             style={styles.addButton}
