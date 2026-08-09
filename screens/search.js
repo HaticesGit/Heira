@@ -1,38 +1,12 @@
-import React, { useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
+import { useFocusEffect } from "@react-navigation/native";
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
-const USERS = [
-  {
-    id: "1",
-    username: "CrazyKoala",
-    mutualFriends: 12,
-  },
-  {
-    id: "2",
-    username: "SquishyChameleon",
-    mutualFriends: 8,
-  },
-  {
-    id: "3",
-    username: "NightOwl",
-    mutualFriends: 5,
-  },
-  {
-    id: "4",
-    username: "BraveBunny",
-    mutualFriends: 3,
-  },
-];
-
-const INITIAL_RECENT_SEARCHES = [
-  "SquishyChameleon",
-  "NightOwl",
-  "BraveBunny",
-];
+const INITIAL_RECENT_SEARCHES = [];
 
 export default function SearchScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -40,18 +14,97 @@ export default function SearchScreen({ navigation }) {
     INITIAL_RECENT_SEARCHES
   );
   const [followedUsers, setFollowedUsers] = useState([]);
+  const [currentUserId, setCurrentUserId] = useState(null);
+  const [userResults, setUserResults] = useState([]);
+  const [meetupResults, setMeetupResults] = useState([]);
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
+  useFocusEffect(
+  React.useCallback(() => {
+    const fetchFollowing = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-  const searchResults = useMemo(() => {
+      if (!session) {
+        setCurrentUserId(null);
+        setFollowedUsers([]);
+        return;
+      }
+
+      setCurrentUserId(session.user.id);
+
+      const { data, error } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", session.user.id);
+
+      if (error) {
+        console.error("Error fetching followed users:", error);
+        return;
+      }
+
+      setFollowedUsers(
+        (data || []).map((follow) => follow.following_id)
+      );
+    };
+
+    fetchFollowing();
+  }, [])
+);
+
+  useEffect(() => {
+  const searchSupabase = async () => {
     if (!normalizedQuery) {
-      return [];
+      setUserResults([]);
+      setMeetupResults([]);
+      return;
     }
 
-    return USERS.filter((user) =>
-      user.username.toLowerCase().includes(normalizedQuery)
-    );
-  }, [normalizedQuery]);
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("id, username, is_verified")
+      .ilike("username", `%${normalizedQuery}%`)
+      .limit(10);
+
+    if (usersError) {
+      console.error("Error searching users:", usersError);
+    } else {
+      setUserResults(users || []);
+    }
+
+    const { data: meetups, error: meetupsError } = await supabase
+      .from("meetups")
+      .select("*")
+      .or(
+        `location.ilike.%${normalizedQuery}%,category.ilike.%${normalizedQuery}%`
+      )
+      .order("meetup_date", { ascending: true })
+      .limit(10);
+
+    if (meetupsError) {
+      console.error("Error searching meetups:", meetupsError);
+    } else {
+      const formattedMeetups = (meetups || []).map((meetup) => {
+  const [year, month, day] = meetup.meetup_date.split("-");
+
+  return {
+    id: meetup.id.toString(),
+    creatorId: meetup.creator_id,
+    username: meetup.username,
+    location: meetup.location,
+    date: `${day}/${month}/${year.slice(-2)}`,
+    time: meetup.meetup_time.slice(0, 5),
+    category: meetup.category,
+  };
+});
+
+setMeetupResults(formattedMeetups);
+    }
+  };
+
+  searchSupabase();
+}, [normalizedQuery]);
 
   const removeRecentSearch = (search) => {
     setRecentSearches((currentSearches) =>
@@ -67,17 +120,54 @@ export default function SearchScreen({ navigation }) {
     setSearchQuery(search);
   };
 
-  const toggleFollow = (userId) => {
-    setFollowedUsers((currentUsers) => {
-      const isAlreadyFollowing = currentUsers.includes(userId);
+const toggleFollow = async (userId) => {
+  if (!currentUserId) {
+    navigation.navigate("Login");
+    return;
+  }
 
-      if (isAlreadyFollowing) {
-        return currentUsers.filter((id) => id !== userId);
-      }
+  if (currentUserId === userId) {
+    return;
+  }
 
-      return [...currentUsers, userId];
-    });
-  };
+  const isAlreadyFollowing = followedUsers.includes(userId);
+
+  if (isAlreadyFollowing) {
+    const { error } = await supabase
+      .from("follows")
+      .delete()
+      .eq("follower_id", currentUserId)
+      .eq("following_id", userId);
+
+    if (error) {
+      console.error("Error unfollowing user:", error);
+      return;
+    }
+
+    setFollowedUsers((currentUsers) =>
+      currentUsers.filter((id) => id !== userId)
+    );
+  } else {
+    const { error } = await supabase
+      .from("follows")
+      .insert([
+        {
+          follower_id: currentUserId,
+          following_id: userId,
+        },
+      ]);
+
+    if (error) {
+      console.error("Error following user:", error);
+      return;
+    }
+
+    setFollowedUsers((currentUsers) => [
+      ...currentUsers,
+      userId,
+    ]);
+  }
+};
 
   const renderUser = ({ item }) => {
     const isFollowing = followedUsers.includes(item.id);
@@ -105,10 +195,6 @@ export default function SearchScreen({ navigation }) {
         <View style={styles.userInfo}>
           <Text style={styles.username}>
             {item.username}
-          </Text>
-
-          <Text style={styles.mutualFriends}>
-            {item.mutualFriends} mutual friends
           </Text>
         </View>
 
@@ -143,6 +229,43 @@ export default function SearchScreen({ navigation }) {
       </TouchableOpacity>
     );
   };
+  const renderMeetup = ({ item }) => {
+  return (
+    <TouchableOpacity
+      style={styles.userCard}
+      activeOpacity={0.85}
+      onPress={() =>
+        navigation.navigate("MeetupDetail", {
+          meetup: item,
+        })
+      }
+    >
+      <View style={styles.meetupIcon}>
+        <Ionicons
+          name="location"
+          size={23}
+          color={COLORS.green}
+        />
+      </View>
+
+      <View style={styles.userInfo}>
+        <Text style={styles.username}>
+          {item.location}
+        </Text>
+
+        <Text style={styles.meetupDetails}>
+          {item.date} · {item.time} · {item.category}
+        </Text>
+      </View>
+
+      <Ionicons
+        name="chevron-forward"
+        size={22}
+        color={COLORS.blue}
+      />
+    </TouchableOpacity>
+  );
+};
 
   return (
     <SafeAreaView
@@ -181,12 +304,12 @@ export default function SearchScreen({ navigation }) {
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search users"
+              placeholder="Search users or meet-ups"
               placeholderTextColor={COLORS.blue}
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
-              accessibilityLabel="Search users"
+              accessibilityLabel="Search users or meet-ups"
             />
 
             {searchQuery.length > 0 ? (
@@ -290,33 +413,60 @@ export default function SearchScreen({ navigation }) {
         )}
 
         {normalizedQuery ? (
-          <FlatList
-            data={searchResults}
-            keyExtractor={(item) => item.id}
-            renderItem={renderUser}
-            style={styles.resultsList}
-            contentContainerStyle={styles.resultsContent}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            ListEmptyComponent={
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="search-outline"
-                  size={56}
-                  color={COLORS.span}
-                />
+  <ScrollView
+    style={styles.resultsList}
+    contentContainerStyle={styles.resultsContent}
+    keyboardShouldPersistTaps="handled"
+    showsVerticalScrollIndicator={false}
+  >
+    {userResults.length > 0 ? (
+      <>
+        <Text style={styles.resultSectionTitle}>
+          Users
+        </Text>
 
-                <Text style={styles.emptyTitle}>
-                  No users found
-                </Text>
+        {userResults.map((user) => (
+          <View key={`user-${user.id}`}>
+            {renderUser({ item: user })}
+          </View>
+        ))}
+      </>
+    ) : null}
 
-                <Text style={styles.emptyText}>
-                  Try searching for another username.
-                </Text>
-              </View>
-            }
-          />
-        ) : null}
+    {meetupResults.length > 0 ? (
+      <>
+        <Text style={styles.resultSectionTitle}>
+          Meet-ups
+        </Text>
+
+        {meetupResults.map((meetup) => (
+          <View key={`meetup-${meetup.id}`}>
+            {renderMeetup({ item: meetup })}
+          </View>
+        ))}
+      </>
+    ) : null}
+
+    {userResults.length === 0 &&
+    meetupResults.length === 0 ? (
+      <View style={styles.emptyState}>
+        <Ionicons
+          name="search-outline"
+          size={56}
+          color={COLORS.span}
+        />
+
+        <Text style={styles.emptyTitle}>
+          No results found
+        </Text>
+
+        <Text style={styles.emptyText}>
+          Try searching for another user or meet-up.
+        </Text>
+      </View>
+    ) : null}
+  </ScrollView>
+) : null}
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -563,4 +713,26 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  resultSectionTitle: {
+  color: COLORS.blue,
+  fontSize: 17,
+  fontWeight: "700",
+  marginBottom: 10,
+  marginTop: 4,
+},
+
+meetupIcon: {
+  width: 43,
+  height: 43,
+  borderRadius: 22,
+  backgroundColor: COLORS.lightgreen,
+  alignItems: "center",
+  justifyContent: "center",
+  marginRight: 11,
+},
+
+meetupDetails: {
+  color: COLORS.span,
+  fontSize: 13,
+},
 });
