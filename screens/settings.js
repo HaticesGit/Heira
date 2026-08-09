@@ -53,9 +53,7 @@ export default function SettingsScreen({ navigation }) {
           <SettingRow
             label="Add safespace"
             buttonText="View"
-            onPress={() => {
-              console.log("Add safespace pressed");
-            }}
+            onPress={() => navigation.navigate("VerifySafespace")}
           />
 
           <SettingRow
