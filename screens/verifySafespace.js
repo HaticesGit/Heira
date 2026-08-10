@@ -18,6 +18,7 @@ export default function VerifySafespaceScreen({ navigation }) {
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
+  const [extraImages, setExtraImages] = useState([]);
 
   const pickProfileImage = async () => {
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -32,6 +33,20 @@ export default function VerifySafespaceScreen({ navigation }) {
     setProfileImage(result.assets[0]);
   }
 };
+const pickExtraImages = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsMultipleSelection: true,
+    selectionLimit: 4,
+    quality: 0.8,
+    base64: true,
+  });
+
+  if (!result.canceled) {
+    setExtraImages(result.assets.slice(0, 4));
+  }
+};
+
 
   const geocodeAddress = async (location) => {
     try {
@@ -210,6 +225,63 @@ export default function VerifySafespaceScreen({ navigation }) {
     );
   }
 }
+if (extraImages.length > 0) {
+  for (let index = 0; index < extraImages.length; index++) {
+    const image = extraImages[index];
+
+    if (!image.base64) {
+      continue;
+    }
+
+    const extension =
+      image.fileName?.split(".").pop() || "jpg";
+
+    const filePath =
+      `${newSafespace.id}/extra-${index + 1}.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("safespace-images")
+      .upload(
+        filePath,
+        decode(image.base64),
+        {
+          contentType:
+            image.mimeType || "image/jpeg",
+        }
+      );
+
+    if (uploadError) {
+      console.error(
+        "Error uploading extra image:",
+        uploadError
+      );
+
+      continue;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("safespace-images")
+      .getPublicUrl(filePath);
+
+    const { error: imageError } = await supabase
+      .from("safespace_images")
+      .insert([
+        {
+          safespace_id: newSafespace.id,
+          image_url: publicUrl,
+        },
+      ]);
+
+    if (imageError) {
+      console.error(
+        "Error saving extra image:",
+        imageError
+      );
+    }
+  }
+}
 
     Alert.alert(
       "Safespace submitted",
@@ -301,6 +373,37 @@ export default function VerifySafespaceScreen({ navigation }) {
   >
     <Ionicons
       name="image-outline"
+      size={18}
+      color={COLORS.blue}
+    />
+
+    <Text style={styles.uploadText}>
+      Upload
+    </Text>
+  </TouchableOpacity>
+</View>
+
+<View style={styles.documentContainer}>
+  <View>
+    <Text style={styles.documentLabel}>
+      Extra photos
+    </Text>
+
+    <Text style={styles.documentPlaceholder}>
+      {extraImages.length > 0
+        ? `${extraImages.length} photo${
+            extraImages.length === 1 ? "" : "s"
+          } selected`
+        : "No extra photos selected"}
+    </Text>
+  </View>
+
+  <TouchableOpacity
+    style={styles.uploadButton}
+    onPress={pickExtraImages}
+  >
+    <Ionicons
+      name="images-outline"
       size={18}
       color={COLORS.blue}
     />
