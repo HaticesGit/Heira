@@ -11,6 +11,7 @@ export default function SafespaceDetailScreen({ navigation, route }) {
   const safespace = route.params?.safespace;
   const [averageRating, setAverageRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
+  const [photos, setPhotos] = useState([]);
   if (!safespace) {
     return null;
   }
@@ -33,18 +34,33 @@ export default function SafespaceDetailScreen({ navigation, route }) {
 
       if (reviews.length === 0) {
         setAverageRating(0);
+      } else {
+        const totalRating = reviews.reduce(
+          (total, review) => total + review.rating,
+          0
+        );
+
+        setAverageRating(totalRating / reviews.length);
+      }
+    };
+
+    const fetchPhotos = async () => {
+      const { data, error } = await supabase
+        .from("safespace_images")
+        .select("id, image_url")
+        .eq("safespace_id", safespace.id)
+        .order("created_at", { ascending: true });
+
+      if (error) {
+        console.error("Error fetching safespace photos:", error);
         return;
       }
 
-      const totalRating = reviews.reduce(
-        (total, review) => total + review.rating,
-        0
-      );
-
-      setAverageRating(totalRating / reviews.length);
+      setPhotos(data || []);
     };
 
     fetchReviewSummary();
+    fetchPhotos();
   }, [safespace.id])
 );
 
@@ -230,16 +246,21 @@ export default function SafespaceDetailScreen({ navigation, route }) {
               </View>
 
               <View style={styles.photosRow}>
-                {[1, 2, 3, 4].map((photo) => (
-                  <View key={photo} style={styles.photoPlaceholder}>
-                    <Ionicons
-                      name="image-outline"
-                      size={25}
-                      color={COLORS.span}
-                    />
-                  </View>
-                ))}
-              </View>
+  {photos.length > 0 ? (
+    photos.map((photo) => (
+      <Image
+        key={photo.id}
+        source={{ uri: photo.image_url }}
+        style={styles.photoImage}
+        resizeMode="cover"
+      />
+    ))
+  ) : (
+    <Text style={styles.noPhotosText}>
+      No extra photos yet
+    </Text>
+  )}
+</View>
             </View>
           </View>
         </ScrollView>
@@ -483,10 +504,10 @@ hero: {
   },
 
   photosRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 10,
-  },
+  flexDirection: "row",
+  flexWrap: "wrap",
+  marginTop: 10,
+},
 
   photoPlaceholder: {
     width: "22%",
@@ -503,4 +524,16 @@ hero: {
     left: 0,
     right: 0,
   },
+  photoImage: {
+  width: 76,
+  height: 76,
+  borderRadius: 8,
+  marginRight: 10,
+  marginBottom: 10,
+},
+
+noPhotosText: {
+  color: COLORS.span,
+  fontSize: 14,
+},
 });
