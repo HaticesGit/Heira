@@ -5,23 +5,11 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
 
-const DEFAULT_SAFESPACE = {
-  id: "1",
-  name: "The Cozy Café",
-  distance: "1.2 km",
-  address: "Centerstreet 12, 1000 Brussels",
-  safetyMeasure: "Staff trained",
-  openingHours: "08:00 – 20:00",
-  status: "Open now until 20:00",
-  rating: 4.8,
-  reviewCount: 32,
-};
-
 export default function SafespaceDetailScreen({ navigation, route }) {
-  const safespace = {
-    ...DEFAULT_SAFESPACE,
-    ...route.params?.safespace,
-  };
+  const safespace = route.params?.safespace;
+  if (!safespace) {
+    return null;
+  }
 
   const handleGetDirections = () => {
     navigation.navigate("MainTabs", {
@@ -66,12 +54,8 @@ export default function SafespaceDetailScreen({ navigation, route }) {
                 <Text style={styles.title}>{safespace.name}</Text>
 
                 <View style={styles.statusRow}>
-                  <Text style={styles.distance}>
-                    {safespace.distance} away
-                  </Text>
-
                   <Text style={styles.openStatus}>
-                    {safespace.status}
+                    {safespace.type}
                   </Text>
                 </View>
               </View>
@@ -117,9 +101,9 @@ export default function SafespaceDetailScreen({ navigation, route }) {
                   {safespace.rating}
                 </Text>
 
-                <Text style={styles.reviewCount}>
-                  ({safespace.reviewCount} reviews)
-                </Text>
+                <Text style={styles.rating}>
+  No reviews yet
+</Text>
               </View>
 
               <TouchableOpacity
