@@ -19,6 +19,7 @@ export default function VerifySafespaceScreen({ navigation }) {
   const [loading, setLoading] = useState(false);
   const [profileImage, setProfileImage] = useState(null);
   const [extraImages, setExtraImages] = useState([]);
+  const [ownershipDocument, setOwnershipDocument] = useState(null);
 
   const pickProfileImage = async () => {
   const result = await ImagePicker.launchImageLibraryAsync({
@@ -44,6 +45,18 @@ const pickExtraImages = async () => {
 
   if (!result.canceled) {
     setExtraImages(result.assets.slice(0, 4));
+  }
+};
+const pickOwnershipDocument = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsEditing: false,
+    quality: 0.8,
+    base64: true,
+  });
+
+  if (!result.canceled) {
+    setOwnershipDocument(result.assets[0]);
   }
 };
 
@@ -90,11 +103,12 @@ const pickExtraImages = async () => {
     const trimmedPhone = phoneNumber.trim();
 
     if (
-      !trimmedName ||
-      !trimmedAddress ||
-      !type ||
-      !trimmedPhone
-    ) {
+  !trimmedName ||
+  !trimmedAddress ||
+  !type ||
+  !trimmedPhone ||
+  !ownershipDocument
+) {
       Alert.alert(
         "Missing information",
         "Please complete all required fields."
@@ -283,8 +297,60 @@ if (extraImages.length > 0) {
   }
 }
 
+if (ownershipDocument?.base64) {
+  const extension =
+    ownershipDocument.fileName?.split(".").pop() || "jpg";
+
+  const documentPath =
+    `${newSafespace.id}/ownership.${extension}`;
+
+  const { error: documentUploadError } = await supabase.storage
+    .from("safespace-verification")
+    .upload(
+      documentPath,
+      decode(ownershipDocument.base64),
+      {
+        contentType:
+          ownershipDocument.mimeType || "image/jpeg",
+      }
+    );
+
+  if (documentUploadError) {
+    console.error(
+      "Error uploading verification document:",
+      documentUploadError
+    );
+
     Alert.alert(
-      "Safespace submitted",
+      "Document upload failed",
+      "The verification document could not be uploaded."
+    );
+
+    return;
+  }
+
+  const { error: documentDatabaseError } = await supabase
+    .from("safespace_verification_documents")
+    .insert([
+      {
+        safespace_id: newSafespace.id,
+        document_url: documentPath,
+        document_type: "ownership",
+      },
+    ]);
+
+  if (documentDatabaseError) {
+    console.error(
+      "Error saving verification document:",
+      documentDatabaseError
+    );
+
+    return;
+  }
+}
+
+Alert.alert(
+  "Safespace submitted",
       "Your Safespace was submitted for verification.",
       [
         {
@@ -421,15 +487,15 @@ if (extraImages.length > 0) {
     </Text>
 
     <Text style={styles.documentPlaceholder}>
-      No document selected
+      {ownershipDocument
+        ? ownershipDocument.fileName || "Document selected"
+        : "No document selected"}
     </Text>
   </View>
 
   <TouchableOpacity
     style={styles.uploadButton}
-    onPress={() =>
-      console.log("Upload ownership document")
-    }
+    onPress={pickOwnershipDocument}
   >
     <Ionicons
       name="cloud-upload-outline"
