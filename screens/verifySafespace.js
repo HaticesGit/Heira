@@ -5,6 +5,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
+import * as ImagePicker from "expo-image-picker";
+import { decode } from "base64-arraybuffer";
 
 export default function VerifySafespaceScreen({ navigation }) {
   const [name, setName] = useState("");
@@ -15,6 +17,21 @@ export default function VerifySafespaceScreen({ navigation }) {
   const [staffTrained, setStaffTrained] = useState(false);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+
+  const pickProfileImage = async () => {
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ["images"],
+    allowsEditing: true,
+    aspect: [4, 3],
+    quality: 0.8,
+    base64: true,
+  });
+
+  if (!result.canceled) {
+    setProfileImage(result.assets[0]);
+  }
+};
 
   const geocodeAddress = async (location) => {
     try {
@@ -104,24 +121,26 @@ export default function VerifySafespaceScreen({ navigation }) {
       return;
     }
 
-    const { error } = await supabase
-      .from("safespaces")
-      .insert([
-        {
-          creator_id: session.user.id,
-          name: trimmedName,
-          address: trimmedAddress,
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
-          available_hours: availableHours.trim() || null,
-          type,
-          phone_number: trimmedPhone,
-          safety_measure: staffTrained
-            ? "Staff trained to help"
-            : null,
-          is_verified: false,
-        },
-      ]);
+    const { data: newSafespace, error } = await supabase
+  .from("safespaces")
+  .insert([
+    {
+      creator_id: session.user.id,
+      name: trimmedName,
+      address: trimmedAddress,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
+      available_hours: availableHours.trim() || null,
+      type,
+      phone_number: trimmedPhone,
+      safety_measure: staffTrained
+        ? "Staff trained to help"
+        : null,
+      is_verified: false,
+    },
+  ])
+  .select()
+  .single();
 
     setLoading(false);
 
@@ -138,6 +157,59 @@ export default function VerifySafespaceScreen({ navigation }) {
 
       return;
     }
+
+    if (profileImage?.base64) {
+  const extension =
+    profileImage.fileName?.split(".").pop() || "jpg";
+
+  const filePath =
+    `${newSafespace.id}/profile.${extension}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("safespace-images")
+    .upload(
+      filePath,
+      decode(profileImage.base64),
+      {
+        contentType:
+          profileImage.mimeType || "image/jpeg",
+      }
+    );
+
+  if (uploadError) {
+    console.error(
+      "Error uploading safespace image:",
+      uploadError
+    );
+
+    Alert.alert(
+      "Safespace saved",
+      "The Safespace was saved, but the photo could not be uploaded."
+    );
+
+    return;
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage
+    .from("safespace-images")
+    .getPublicUrl(filePath);
+
+  const { error: updateError } = await supabase
+    .from("safespaces")
+    .update({
+      profile_image_url: publicUrl,
+    })
+    .eq("id", newSafespace.id);
+
+  if (updateError) {
+    console.error(
+      "Error saving image URL:",
+      updateError
+    );
+  }
+}
 
     Alert.alert(
       "Safespace submitted",
@@ -202,43 +274,71 @@ export default function VerifySafespaceScreen({ navigation }) {
             Location Details
           </Text>
 
-          <TextInput
-            style={styles.input}
-            value={name}
-            onChangeText={setName}
-            placeholder="Safespace name"
-            placeholderTextColor={COLORS.span}
-          />
+<TextInput
+  style={styles.input}
+  value={name}
+  onChangeText={setName}
+  placeholder="Safespace name"
+  placeholderTextColor={COLORS.span}
+/>
 
-          <View style={styles.documentContainer}>
-            <View>
-              <Text style={styles.documentLabel}>
-                Photo of ownership document
-              </Text>
+<View style={styles.documentContainer}>
+  <View>
+    <Text style={styles.documentLabel}>
+      Safespace photo
+    </Text>
 
-              <Text style={styles.documentPlaceholder}>
-                No document selected
-              </Text>
-            </View>
+    <Text style={styles.documentPlaceholder}>
+      {profileImage
+        ? profileImage.fileName || "Photo selected"
+        : "No photo selected"}
+    </Text>
+  </View>
 
-            <TouchableOpacity
-              style={styles.uploadButton}
-              onPress={() =>
-                console.log("Upload ownership document")
-              }
-            >
-              <Ionicons
-                name="cloud-upload-outline"
-                size={18}
-                color={COLORS.blue}
-              />
+  <TouchableOpacity
+    style={styles.uploadButton}
+    onPress={pickProfileImage}
+  >
+    <Ionicons
+      name="image-outline"
+      size={18}
+      color={COLORS.blue}
+    />
 
-              <Text style={styles.uploadText}>
-                Upload
-              </Text>
-            </TouchableOpacity>
-          </View>
+    <Text style={styles.uploadText}>
+      Upload
+    </Text>
+  </TouchableOpacity>
+</View>
 
+<View style={styles.documentContainer}>
+  <View>
+    <Text style={styles.documentLabel}>
+      Photo of ownership document
+    </Text>
+
+    <Text style={styles.documentPlaceholder}>
+      No document selected
+    </Text>
+  </View>
+
+  <TouchableOpacity
+    style={styles.uploadButton}
+    onPress={() =>
+      console.log("Upload ownership document")
+    }
+  >
+    <Ionicons
+      name="cloud-upload-outline"
+      size={18}
+      color={COLORS.blue}
+    />
+
+    <Text style={styles.uploadText}>
+      Upload
+    </Text>
+  </TouchableOpacity>
+</View>
           <View style={styles.locationContainer}>
             <Ionicons
               name="location"
