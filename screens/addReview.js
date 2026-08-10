@@ -1,70 +1,89 @@
 import React, { useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  TextInput,
-  KeyboardAvoidingView,
-  Platform,
-  Alert,
-  ScrollView,
-} from "react-native";
+import {View, Text, TouchableOpacity, StyleSheet, TextInput, KeyboardAvoidingView, Platform, Alert, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
 export default function AddReviewScreen({ navigation, route }) {
-  const safespace = route.params?.safespace ?? {
-    id: "1",
-    name: "The Cozy Café",
-  };
+  const safespace = route.params?.safespace;
+  if (!safespace) {
+    return null;
+  }
 
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
 
-  const handleSubmitReview = () => {
-    const trimmedReview = reviewText.trim();
+  const handleSubmitReview = async () => {
+  const trimmedReview = reviewText.trim();
 
-    if (rating === 0) {
+  if (rating === 0) {
+    Alert.alert(
+      "Choose a rating",
+      "Please select how many stars you want to give."
+    );
+    return;
+  }
+
+  if (!trimmedReview) {
+    Alert.alert(
+      "Write a review",
+      "Please write something about your experience."
+    );
+    return;
+  }
+
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) {
+    navigation.navigate("Login");
+    return;
+  }
+
+  const { error } = await supabase
+    .from("safespace_reviews")
+    .insert([
+      {
+        safespace_id: safespace.id,
+        user_id: session.user.id,
+        rating,
+        comment: trimmedReview,
+      },
+    ]);
+
+  if (error) {
+    console.error("Error submitting review:", error);
+
+    if (error.code === "23505") {
       Alert.alert(
-        "Choose a rating",
-        "Please select how many stars you want to give."
+        "Review already submitted",
+        "You have already reviewed this Safespace."
       );
       return;
     }
-
-    if (!trimmedReview) {
-      Alert.alert(
-        "Write a review",
-        "Please write something about your experience."
-      );
-      return;
-    }
-
-    const newReview = {
-      id: Date.now().toString(),
-      safespaceId: safespace.id,
-      username: "fartingUnicorn",
-      date: "Now",
-      rating,
-      text: trimmedReview,
-    };
-
-    console.log("New safespace review:", newReview);
 
     Alert.alert(
-      "Review submitted",
-      "Thank you for sharing your experience.",
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
-        },
-      ]
+      "Could not submit review",
+      "Please try again."
     );
-  };
+
+    return;
+  }
+
+  Alert.alert(
+    "Review submitted",
+    "Thank you for sharing your experience.",
+    [
+      {
+        text: "OK",
+        onPress: () => navigation.goBack(),
+      },
+    ]
+  );
+};
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top", "bottom"]}>
