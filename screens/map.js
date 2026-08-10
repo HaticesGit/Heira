@@ -16,7 +16,7 @@ export default function MapScreen({ navigation }) {
       const { data, error } = await supabase
         .from("safespaces")
         .select(
-          "id, name, address, latitude, longitude, available_hours, type, phone_number, safety_measure, is_verified"
+          "id, name, address, latitude, longitude, available_hours, type, phone_number, safety_measure, is_verified, profile_image_url"
         )
         .order("created_at", { ascending: false });
 
@@ -34,6 +34,7 @@ export default function MapScreen({ navigation }) {
         openingHours: safespace.available_hours || "",
         type: safespace.type,
         phoneNumber: safespace.phone_number,
+        profileImageUrl: safespace.profile_image_url,
         safetyMeasure:
           safespace.safety_measure ||
           (safespace.is_verified
