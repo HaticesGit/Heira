@@ -1,82 +1,98 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import ReviewCard from "../components/ReviewCard";
 import { COLORS } from "../constants/colors";
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
 
-const DEFAULT_SAFESPACE = {
-  id: "1",
-  name: "The Cozy Café",
-  rating: 4.8,
-  reviewCount: 32,
-  status: "Open now until 20:00",
-};
-
-const RATING_DISTRIBUTION = [
-  {
-    rating: 5,
-    amount: 26,
-  },
-  {
-    rating: 4,
-    amount: 5,
-  },
-  {
-    rating: 3,
-    amount: 1,
-  },
-  {
-    rating: 2,
-    amount: 0,
-  },
-  {
-    rating: 1,
-    amount: 0,
-  },
-];
-
-const REVIEWS = [
-  {
-    id: "1",
-    username: "CrazyKoala",
-    date: "2 days ago",
-    rating: 5,
-    text: "Felt really safe here. The staff is super kind and the place is well lit and welcoming.",
-  },
-  {
-    id: "2",
-    username: "SquishyChameleon",
-    date: "4 days ago",
-    rating: 5,
-    text: "A calm and friendly place. I would definitely come here again if I needed somewhere safe.",
-  },
-  {
-    id: "3",
-    username: "NightOwl",
-    date: "1 week ago",
-    rating: 4,
-    text: "The staff was helpful and made me feel comfortable. It was also easy to find.",
-  },
-  {
-    id: "4",
-    username: "BraveBunny",
-    date: "2 weeks ago",
-    rating: 3,
-    text: "A good place overall, although it was quite busy when I visited.",
-  },
-];
 
 export default function SafespaceReviewsScreen({ navigation, route }) {
-  const safespace = {
-    ...DEFAULT_SAFESPACE,
-    ...route.params?.safespace,
-  };
+  const safespace = route.params?.safespace;
 
-  const highestRatingAmount = Math.max(
-    ...RATING_DISTRIBUTION.map((item) => item.amount)
-  );
+const [reviews, setReviews] = useState([]);
+const [averageRating, setAverageRating] = useState(0);
+const [ratingDistribution, setRatingDistribution] = useState([
+  { rating: 5, amount: 0 },
+  { rating: 4, amount: 0 },
+  { rating: 3, amount: 0 },
+  { rating: 2, amount: 0 },
+  { rating: 1, amount: 0 },
+]);
+
+useFocusEffect(
+  useCallback(() => {
+    if (!safespace?.id) return;
+
+    const fetchReviews = async () => {
+      const { data, error } = await supabase
+        .from("safespace_reviews")
+        .select(`
+          id,
+          rating,
+          comment,
+          created_at,
+          user_id,
+          profiles (
+            username
+          )
+        `)
+        .eq("safespace_id", safespace.id)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching reviews:", error);
+        return;
+      }
+
+      const formattedReviews = (data || []).map((review) => ({
+        id: review.id,
+        userId: review.user_id,
+        username: review.profiles?.username || "User",
+        date: new Date(review.created_at).toLocaleDateString(),
+        rating: review.rating,
+        text: review.comment,
+      }));
+
+      setReviews(formattedReviews);
+
+      if (formattedReviews.length === 0) {
+        setAverageRating(0);
+      } else {
+        const totalRating = formattedReviews.reduce(
+          (total, review) => total + review.rating,
+          0
+        );
+
+        setAverageRating(
+          totalRating / formattedReviews.length
+        );
+      }
+
+      setRatingDistribution(
+        [5, 4, 3, 2, 1].map((rating) => ({
+          rating,
+          amount: formattedReviews.filter(
+            (review) => review.rating === rating
+          ).length,
+        }))
+      );
+    };
+
+    fetchReviews();
+  }, [safespace?.id])
+);
+
+if (!safespace) {
+  return null;
+}
+
+const highestRatingAmount = Math.max(
+  1,
+  ...ratingDistribution.map((item) => item.amount)
+);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -114,11 +130,11 @@ export default function SafespaceReviewsScreen({ navigation, route }) {
                 <Ionicons name="star" size={20} color={COLORS.yellow} />
 
                 <Text style={styles.inlineRatingNumber}>
-                  {safespace.rating}
+                  {averageRating > 0 ? averageRating.toFixed(1) : "—"}
                 </Text>
 
                 <Text style={styles.inlineReviewCount}>
-                  ({safespace.reviewCount} reviews)
+                  ({reviews.length} reviews)
                 </Text>
               </View>
 
@@ -130,26 +146,32 @@ export default function SafespaceReviewsScreen({ navigation, route }) {
 
           <View style={styles.ratingSummary}>
             <View style={styles.averageColumn}>
-              <Text style={styles.averageRating}>{safespace.rating}</Text>
+             <Text style={styles.averageRating}>
+              {averageRating > 0 ? averageRating.toFixed(1) : "—"}
+            </Text>
 
               <View style={styles.averageStars}>
                 {[1, 2, 3, 4, 5].map((star) => (
                   <Ionicons
                     key={star}
-                    name="star"
+                    name={star <= Math.round(averageRating) ? "star" : "star-outline"}
                     size={18}
-                    color={COLORS.yellow}
+                    color={
+                      star <= Math.round(averageRating)
+                        ? COLORS.yellow
+                        : COLORS.midGray
+                    }
                   />
                 ))}
               </View>
 
               <Text style={styles.averageReviewCount}>
-                ({safespace.reviewCount} reviews)
+                ({reviews.length} reviews)
               </Text>
             </View>
 
             <View style={styles.distributionColumn}>
-              {RATING_DISTRIBUTION.map((item) => {
+              {ratingDistribution.map((item) => {
                 const percentage =
                   highestRatingAmount > 0
                     ? (item.amount / highestRatingAmount) * 100
@@ -190,7 +212,7 @@ export default function SafespaceReviewsScreen({ navigation, route }) {
           <View style={styles.divider} />
 
           <View style={styles.reviewsList}>
-            {REVIEWS.map((review) => (
+            {reviews.map((review) => (
               <ReviewCard
                 key={review.id}
                 review={review}
