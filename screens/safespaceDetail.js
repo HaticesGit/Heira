@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -80,9 +80,21 @@ export default function SafespaceDetailScreen({ navigation, route }) {
 
             <View style={styles.headerPlaceholder} />
 
-            <View style={styles.heroIcon}>
-              <Ionicons name="storefront-outline" size={72} color={COLORS.blue} />
-            </View>
+            {safespace.profileImageUrl ? (
+  <Image
+    source={{ uri: safespace.profileImageUrl }}
+    style={styles.heroImage}
+    resizeMode="cover"
+  />
+) : (
+  <View style={styles.heroIcon}>
+    <Ionicons
+      name="storefront-outline"
+      size={72}
+      color={COLORS.blue}
+    />
+  </View>
+)}
           </View>
 
           <View style={styles.contentCard}>
@@ -255,16 +267,17 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
 
-  hero: {
-    height: 190,
-    backgroundColor: COLORS.lightBlue,
-    paddingHorizontal: 18,
-    paddingTop: 10,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    position: "relative",
-  },
+hero: {
+  height: 190,
+  backgroundColor: COLORS.lightBlue,
+  paddingHorizontal: 18,
+  paddingTop: 10,
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  position: "relative",
+  overflow: "hidden",
+},
 
   backButton: {
     width: 44,
@@ -482,5 +495,12 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.lightBlue,
     alignItems: "center",
     justifyContent: "center",
+  },
+  heroImage: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    left: 0,
+    right: 0,
   },
 });

@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
@@ -7,19 +7,27 @@ import { COLORS } from "../constants/colors";
 export default function SafespaceCard({ safespace, onPress }) {
   return (
     <TouchableOpacity
-      style={styles.card}
-      activeOpacity={0.85}
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`Open details for ${safespace.name}`}
-    >
-      <View style={styles.imagePlaceholder}>
-        <Ionicons
-          name="storefront-outline"
-          size={38}
-          color={COLORS.blue}
-        />
-      </View>
+  style={styles.card}
+  activeOpacity={0.85}
+  onPress={onPress}
+  accessibilityRole="button"
+  accessibilityLabel={`Open details for ${safespace.name}`}
+>
+  {safespace.profileImageUrl ? (
+    <Image
+      source={{ uri: safespace.profileImageUrl }}
+      style={styles.safespaceImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <View style={styles.imagePlaceholder}>
+      <Ionicons
+        name="storefront-outline"
+        size={40}
+        color={COLORS.blue}
+      />
+    </View>
+  )}
 
       <View style={styles.content}>
         <Text style={styles.name}>{safespace.name}</Text>
@@ -123,4 +131,10 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginLeft: 7,
   },
+  safespaceImage: {
+  width: 112,
+  height: 112,
+  borderRadius: 10,
+  marginRight: 12,
+},
 });
