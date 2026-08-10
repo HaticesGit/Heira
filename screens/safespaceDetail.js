@@ -1,15 +1,52 @@
-import React from "react";
+import React, { useCallback, useState } from "react";
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
+import { useFocusEffect } from "@react-navigation/native";
+import { supabase } from "../lib/supabase";
 
 export default function SafespaceDetailScreen({ navigation, route }) {
   const safespace = route.params?.safespace;
+  const [averageRating, setAverageRating] = useState(0);
+  const [reviewCount, setReviewCount] = useState(0);
   if (!safespace) {
     return null;
   }
+  useFocusEffect(
+  useCallback(() => {
+    const fetchReviewSummary = async () => {
+      const { data, error } = await supabase
+        .from("safespace_reviews")
+        .select("rating")
+        .eq("safespace_id", safespace.id);
+
+      if (error) {
+        console.error("Error fetching review summary:", error);
+        return;
+      }
+
+      const reviews = data || [];
+
+      setReviewCount(reviews.length);
+
+      if (reviews.length === 0) {
+        setAverageRating(0);
+        return;
+      }
+
+      const totalRating = reviews.reduce(
+        (total, review) => total + review.rating,
+        0
+      );
+
+      setAverageRating(totalRating / reviews.length);
+    };
+
+    fetchReviewSummary();
+  }, [safespace.id])
+);
 
   const handleGetDirections = () => {
     navigation.navigate("MainTabs", {
@@ -95,15 +132,31 @@ export default function SafespaceDetailScreen({ navigation, route }) {
 
             <View style={styles.reviewsRow}>
               <View style={styles.ratingContainer}>
-                <Ionicons name="star" size={21} color={COLORS.yellow} />
+                <Ionicons
+                  name={reviewCount > 0 ? "star" : "star-outline"}
+                  size={21}
+                  color={
+                    reviewCount > 0
+                      ? COLORS.yellow
+                      : COLORS.midGray
+                  }
+                />
 
-                <Text style={styles.rating}>
-                  {safespace.rating}
-                </Text>
+                {reviewCount > 0 ? (
+                  <>
+                    <Text style={styles.rating}>
+                      {averageRating.toFixed(1)}
+                    </Text>
 
-                <Text style={styles.rating}>
-  No reviews yet
-</Text>
+                    <Text style={styles.reviewCount}>
+                      ({reviewCount} reviews)
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.reviewCount}>
+                    No reviews yet
+                  </Text>
+                )}
               </View>
 
               <TouchableOpacity
