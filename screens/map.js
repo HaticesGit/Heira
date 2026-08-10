@@ -18,6 +18,7 @@ export default function MapScreen({ navigation }) {
         .select(
           "id, name, address, latitude, longitude, available_hours, type, phone_number, safety_measure, is_verified, profile_image_url"
         )
+        .eq("is_verified", true)
         .order("created_at", { ascending: false });
 
       if (error) {
