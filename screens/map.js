@@ -1,46 +1,53 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View, Dimensions, TextInput, TouchableOpacity, Text, ScrollView, Alert } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-
+import { supabase } from "../lib/supabase";
 import SafespaceCard from "../components/SafespaceCard";
 import { COLORS } from "../constants/colors";
-
-const SAFESPACES = [
-  {
-    id: "1",
-    name: "The Cozy Café",
-    distance: "1.2 km",
-    address: "Centerstreet 12, Brussels",
-    safetyMeasure: "Staff trained",
-    openingHours: "Open now until 20:00",
-    latitude: 51.0267,
-    longitude: 4.4792,
-  },
-  {
-    id: "2",
-    name: "Safe Haven Coffee",
-    distance: "1.8 km",
-    address: "Bruul 45, Mechelen",
-    safetyMeasure: "Verified safespace",
-    openingHours: "Open now until 22:00",
-    latitude: 51.0248,
-    longitude: 4.4759,
-  },
-  {
-    id: "3",
-    name: "Green Corner",
-    distance: "2.4 km",
-    address: "IJzerenleen 18, Mechelen",
-    safetyMeasure: "Staff trained",
-    openingHours: "Open now until 19:30",
-    latitude: 51.0284,
-    longitude: 4.4821,
-  },
-];
+import { useFocusEffect } from "@react-navigation/native";
 
 export default function MapScreen({ navigation }) {
   const mapRef = useRef(null);
+  const [safespaces, setSafespaces] = useState([]);
+  useFocusEffect(
+  React.useCallback(() => {
+    const fetchSafespaces = async () => {
+      const { data, error } = await supabase
+        .from("safespaces")
+        .select(
+          "id, name, address, latitude, longitude, available_hours, type, phone_number, safety_measure, is_verified"
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error fetching safespaces:", error);
+        return;
+      }
+
+      const formattedSafespaces = (data || []).map((safespace) => ({
+        id: safespace.id,
+        name: safespace.name,
+        address: safespace.address,
+        latitude: safespace.latitude,
+        longitude: safespace.longitude,
+        openingHours: safespace.available_hours || "",
+        type: safespace.type,
+        phoneNumber: safespace.phone_number,
+        safetyMeasure:
+          safespace.safety_measure ||
+          (safespace.is_verified
+            ? "Verified safespace"
+            : "Pending verification"),
+        isVerified: safespace.is_verified,
+      }));
+
+      setSafespaces(formattedSafespaces);
+    };
+
+    fetchSafespaces();
+  }, [])
+);
 
   const [region, setRegion] = useState({
     latitude: 51.0259,
@@ -263,7 +270,7 @@ const openSafespace = (safespace) => {
         initialRegion={region}
         onRegionChangeComplete={setRegion}
       >
-        {SAFESPACES.map((safespace) => (
+        {safespaces.map((safespace) => (
           <Marker
             key={safespace.id}
             coordinate={{
@@ -397,7 +404,7 @@ const openSafespace = (safespace) => {
           <View style={styles.sheetHeader}>
             <View>
               <Text style={styles.sheetTitle}>
-                {SAFESPACES.length} safespaces nearby
+                {safespaces.length} safespaces nearby
               </Text>
 
               <Text style={styles.sheetSubtitle}>
@@ -426,7 +433,7 @@ const openSafespace = (safespace) => {
               styles.safespacesContent
             }
           >
-            {SAFESPACES.map((safespace) => (
+            {safespaces.map((safespace) => (
               <SafespaceCard
                 key={safespace.id}
                 safespace={safespace}
