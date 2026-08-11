@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 import SafespaceCard from "../components/SafespaceCard";
 import { COLORS } from "../constants/colors";
 import { useFocusEffect } from "@react-navigation/native";
-
+import StarredDestinationsSheet from "../components/StarredDestinationsSheet";
 export default function MapScreen({ navigation }) {
   const mapRef = useRef(null);
   const [safespaces, setSafespaces] = useState([]);
@@ -64,6 +64,8 @@ export default function MapScreen({ navigation }) {
   const [routeInfo, setRouteInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showSafespaces, setShowSafespaces] = useState(true);
+  const [showStarredDestinations, setShowStarredDestinations] = useState(false);
+const [starredDestinations, setStarredDestinations] = useState([]);
 
   const ORS_API_KEY =
     "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjVkMGExODZjMWE4ODRhNDVhNGI1ZGZmMDVlNzI3Y2IzIiwiaCI6Im11cm11cjY0In0=";
@@ -253,15 +255,181 @@ export default function MapScreen({ navigation }) {
     setRouteInfo(null);
   };
 
+  const saveStarredDestination = async () => {
+  const trimmedDestination = destination.trim();
+
+  if (!trimmedDestination) {
+    Alert.alert(
+      "No destination",
+      "Enter a destination before adding it to your starred destinations."
+    );
+    return;
+  }
+
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      Alert.alert(
+        "Not logged in",
+        "You need to be logged in to save a destination."
+      );
+      return;
+    }
+
+    const { data: existingDestinations, error: checkError } =
+  await supabase
+    .from("starred_destinations")
+    .select("id")
+    .eq("user_id", user.id)
+    .eq("address", trimmedDestination)
+    .limit(1);
+
+    if (checkError) {
+      console.error(
+        "Error checking starred destination:",
+        checkError
+      );
+
+      Alert.alert(
+        "Could not save destination",
+        "Please try again."
+      );
+
+      return;
+    }
+
+    if (existingDestinations && existingDestinations.length > 0) {
+  Alert.alert(
+    "Already saved",
+    "This destination is already in your starred destinations."
+  );
+
+  return;
+}
+
+    const coordinates =
+      await geocodeAddress(trimmedDestination);
+
+    if (!coordinates) {
+      Alert.alert(
+        "Location not found",
+        "Please enter a more specific destination."
+      );
+      return;
+    }
+
+    const { error } = await supabase
+      .from("starred_destinations")
+      .insert([
+        {
+          user_id: user.id,
+          name: trimmedDestination,
+          address: trimmedDestination,
+          latitude: coordinates.latitude,
+          longitude: coordinates.longitude,
+        },
+      ]);
+
+    if (error) {
+      console.error(
+        "Error saving starred destination:",
+        error
+      );
+
+      Alert.alert(
+        "Could not save destination",
+        "Please try again."
+      );
+
+      return;
+    }
+
+    Alert.alert(
+      "Destination saved",
+      "This destination was added to your starred destinations."
+    );
+  } catch (error) {
+    console.error(
+      "Error saving starred destination:",
+      error
+    );
+
+    Alert.alert(
+      "Something went wrong",
+      "Please try again."
+    );
+  }
+};
+
+const fetchStarredDestinations = async () => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    setStarredDestinations([]);
+    return;
+  }
+
+  const { data, error } = await supabase
+    .from("starred_destinations")
+    .select("id, name, address, latitude, longitude, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error loading starred destinations:", error);
+    return;
+  }
+
+  setStarredDestinations(data || []);
+};
+
+const openStarredDestinations = async () => {
+  await fetchStarredDestinations();
+
+  setShowSafespaces(false);
+  setShowStarredDestinations(true);
+};
+
+const selectStarredDestination = (place) => {
+  setDestination(place.address);
+  setShowStarredDestinations(false);
+};
+
+const removeStarredDestination = async (place) => {
+  const { error } = await supabase
+    .from("starred_destinations")
+    .delete()
+    .eq("id", place.id);
+
+  if (error) {
+    console.error(
+      "Error removing starred destination:",
+      error
+    );
+
+    Alert.alert(
+      "Could not remove destination",
+      "Please try again."
+    );
+
+    return;
+  }
+
+  setStarredDestinations((current) =>
+    current.filter(
+      (destination) => destination.id !== place.id
+    )
+  );
+};
 const openSafespace = (safespace) => {
   navigation.navigate("SafespaceDetail", {
     safespace,
   });
-
-    // Later:
-    // navigation.navigate("SafespaceDetail", {
-    //   safespace,
-    // });
   };
 
   return (
@@ -352,11 +520,18 @@ const openSafespace = (safespace) => {
             onChangeText={setDestination}
           />
 
-          <Ionicons
-            name="star-outline"
-            size={22}
-            color={COLORS.span}
-          />
+          <TouchableOpacity
+  onPress={openStarredDestinations}
+  onLongPress={saveStarredDestination}
+  delayLongPress={500}
+  activeOpacity={0.7}
+>
+  <Ionicons
+    name="star-outline"
+    size={22}
+    color={COLORS.span}
+  />
+</TouchableOpacity>
         </View>
 
         <TouchableOpacity
@@ -427,6 +602,7 @@ const openSafespace = (safespace) => {
                 color={COLORS.blue}
               />
             </TouchableOpacity>
+            
           </View>
 
           <ScrollView
@@ -461,6 +637,13 @@ const openSafespace = (safespace) => {
           />
         </TouchableOpacity>
       )}
+        <StarredDestinationsSheet
+  visible={showStarredDestinations}
+  destinations={starredDestinations}
+  onClose={() => setShowStarredDestinations(false)}
+  onSelect={selectStarredDestination}
+  onRemove={removeStarredDestination}
+/>
     </View>
   );
 }
