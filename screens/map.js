@@ -6,6 +6,8 @@ import { supabase } from "../lib/supabase";
 import SafespaceCard from "../components/SafespaceCard";
 import { COLORS } from "../constants/colors";
 import { useFocusEffect } from "@react-navigation/native";
+import NavigationInstruction from "../components/NavigationInstruction";
+
 import StarredDestinationsSheet from "../components/StarredDestinationsSheet";
 export default function MapScreen({ navigation }) {
   const mapRef = useRef(null);
@@ -62,6 +64,9 @@ export default function MapScreen({ navigation }) {
   const [destination, setDestination] = useState("");
   const [routeCoords, setRouteCoords] = useState([]);
   const [routeInfo, setRouteInfo] = useState(null);
+  const [routeSteps, setRouteSteps] = useState([]);
+  const [isNavigating, setIsNavigating] = useState(false);
+const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [showSafespaces, setShowSafespaces] = useState(true);
   const [showStarredDestinations, setShowStarredDestinations] = useState(false);
@@ -155,6 +160,11 @@ const [starredDestinations, setStarredDestinations] = useState([]);
 
         const segment =
           data.features[0].properties.segments[0];
+
+        const steps = segment.steps || [];
+          setRouteSteps(steps);
+
+          console.log("Route steps:", steps);
 
         const distance = (
           segment.distance / 1000
@@ -484,7 +494,8 @@ const openSafespace = (safespace) => {
         ) : null}
       </MapView>
 
-      <View style={styles.routePlannerContainer}>
+      {!isNavigating ? (
+  <View style={styles.routePlannerContainer}>
         <Text style={styles.title}>
           Where are you going?
         </Text>
@@ -562,17 +573,52 @@ const openSafespace = (safespace) => {
               </Text>
             </View>
 
-            <TouchableOpacity
-              style={styles.clearButton}
-              onPress={clearRoute}
-            >
-              <Text style={styles.clearButtonText}>
-                Clear
-              </Text>
-            </TouchableOpacity>
+<View style={styles.routeActions}>
+  <TouchableOpacity
+  style={styles.stepsButton}
+  onPress={() => {
+    if (routeSteps.length === 0) {
+      Alert.alert(
+        "No steps",
+        "No navigation instructions were returned."
+      );
+      return;
+    }
+
+    setCurrentStepIndex(0);
+    setIsNavigating(true);
+    setShowSafespaces(false);
+  }}
+>
+  <Text style={styles.stepsButtonText}>
+    Start
+  </Text>
+</TouchableOpacity>
+
+  <TouchableOpacity
+    style={styles.clearButton}
+    onPress={clearRoute}
+  >
+    <Text style={styles.clearButtonText}>
+      Clear
+    </Text>
+  </TouchableOpacity>
+</View>
+
           </View>
         ) : null}
-      </View>
+        </View>
+) : null}
+
+{isNavigating ? (
+  <NavigationInstruction
+    step={routeSteps[currentStepIndex]}
+    onCancel={() => {
+      setIsNavigating(false);
+      setCurrentStepIndex(0);
+    }}
+  />
+) : null}
 
       {showSafespaces ? (
         <View style={styles.safespacesSheet}>
@@ -845,4 +891,22 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 6,
   },
+  routeActions: {
+  flexDirection: "row",
+  alignItems: "center",
+},
+
+stepsButton: {
+  paddingHorizontal: 13,
+  paddingVertical: 7,
+  borderRadius: 7,
+  backgroundColor: COLORS.green,
+  marginRight: 8,
+},
+
+stepsButtonText: {
+  color: COLORS.offWhite,
+  fontSize: 13,
+  fontWeight: "600",
+},
 });
