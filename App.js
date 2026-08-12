@@ -26,6 +26,7 @@ import AddReviewScreen from "./screens/addReview";
 import LoginScreen from "./screens/login";
 import SignUpScreen from "./screens/signUp";
 import VerifySafespaceScreen from "./screens/verifySafespace";
+import VerifyIdentityScreen from "./screens/verifyIdentityScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -188,6 +189,11 @@ export default function App() {
         <Stack.Screen
           name="VerifySafespace"
           component={VerifySafespaceScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="VerifyIdentity"
+          component={VerifyIdentityScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

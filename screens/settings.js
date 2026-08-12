@@ -51,6 +51,12 @@ export default function SettingsScreen({ navigation }) {
           />
 
           <SettingRow
+            label="Verify identity"
+            buttonText="View"
+            onPress={() => navigation.navigate("VerifyIdentity")}
+          />  
+
+          <SettingRow
             label="Add safespace"
             buttonText="View"
             onPress={() => navigation.navigate("VerifySafespace")}
