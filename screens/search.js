@@ -119,6 +119,25 @@ setMeetupResults(formattedMeetups);
   const selectRecentSearch = (search) => {
     setSearchQuery(search);
   };
+  const addRecentSearch = (search) => {
+  const trimmedSearch = search.trim();
+
+  if (!trimmedSearch) {
+    return;
+  }
+
+  setRecentSearches((currentSearches) => {
+    const withoutDuplicate = currentSearches.filter(
+      (item) =>
+        item.toLowerCase() !== trimmedSearch.toLowerCase()
+    );
+
+    return [
+      trimmedSearch,
+      ...withoutDuplicate,
+    ].slice(0, 5);
+  });
+};
 
 const toggleFollow = async (userId) => {
   if (!currentUserId) {
@@ -176,11 +195,13 @@ const toggleFollow = async (userId) => {
       <TouchableOpacity
         style={styles.userCard}
         activeOpacity={0.85}
-        onPress={() =>
-        navigation.navigate("UserProfile", {
-            user: item,
-        })
-        }
+        onPress={() => {
+  addRecentSearch(searchQuery);
+
+  navigation.navigate("UserProfile", {
+    user: item,
+  });
+}}
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.username}'s profile`}
       >
@@ -234,11 +255,13 @@ const toggleFollow = async (userId) => {
     <TouchableOpacity
       style={styles.userCard}
       activeOpacity={0.85}
-      onPress={() =>
-        navigation.navigate("MeetupDetail", {
-          meetup: item,
-        })
-      }
+      onPress={() => {
+  addRecentSearch(searchQuery);
+
+  navigation.navigate("MeetupDetail", {
+    meetup: item,
+  });
+}}
     >
       <View style={styles.meetupIcon}>
         <Ionicons
