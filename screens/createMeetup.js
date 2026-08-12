@@ -105,12 +105,11 @@ export default function CreateMeetupScreen({ navigation }) {
     return;
   }
 
-  // Get the logged-in user's profile
   const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("username")
-    .eq("id", session.user.id)
-    .single();
+  .from("profiles")
+  .select("username, is_verified")
+  .eq("id", session.user.id)
+  .single();
 
   if (profileError) {
     console.error("Error fetching profile:", profileError);
@@ -122,7 +121,24 @@ export default function CreateMeetupScreen({ navigation }) {
 
     return;
   }
+if (!profile.is_verified) {
+  Alert.alert(
+    "Verification required",
+    "Only verified members can create meet-ups. Verify your identity first.",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Verify identity",
+        onPress: () => navigation.navigate("VerifyIdentity"),
+      },
+    ]
+  );
 
+  return;
+}
   setLoading(true);
 
   const { data, error } = await supabase
