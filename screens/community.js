@@ -16,6 +16,90 @@ export default function CommunityScreen({ navigation }) {
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
 
+const filteredMeetups = meetups.filter((meetup) => {
+  if (!activeFilters) {
+    return true;
+  }
+
+  const {
+    categories = [],
+    date = "",
+    time = "",
+  } = activeFilters;
+
+  if (
+    categories.length > 0 &&
+    !categories.includes(meetup.category)
+  ) {
+    return false;
+  }
+
+  if (date) {
+    const today = new Date();
+    const meetupDateParts = meetup.date.split("/");
+
+    const meetupDate = new Date(
+      2000 + Number(meetupDateParts[2]),
+      Number(meetupDateParts[1]) - 1,
+      Number(meetupDateParts[0])
+    );
+
+    if (date === "Today") {
+      if (
+        meetupDate.toDateString() !== today.toDateString()
+      ) {
+        return false;
+      }
+    }
+
+    if (date === "Tomorrow") {
+      const tomorrow = new Date();
+      tomorrow.setDate(today.getDate() + 1);
+
+      if (
+        meetupDate.toDateString() !==
+        tomorrow.toDateString()
+      ) {
+        return false;
+      }
+    }
+
+    if (date === "This week") {
+      const weekFromNow = new Date();
+      weekFromNow.setDate(today.getDate() + 7);
+
+      if (
+        meetupDate < today ||
+        meetupDate > weekFromNow
+      ) {
+        return false;
+      }
+    }
+  }
+
+  if (time) {
+    const hour = Number(meetup.time.split(":")[0]);
+
+    if (time === "Morning" && !(hour >= 5 && hour < 12)) {
+      return false;
+    }
+
+    if (time === "Afternoon" && !(hour >= 12 && hour < 17)) {
+      return false;
+    }
+
+    if (time === "Evening" && !(hour >= 17 && hour < 22)) {
+      return false;
+    }
+
+    if (time === "Night" && !(hour >= 22 || hour < 5)) {
+      return false;
+    }
+  }
+
+  return true;
+});
+
   const formatDate = (date) => {
     if (!date) return "";
 
@@ -259,8 +343,8 @@ export default function CommunityScreen({ navigation }) {
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
           >
-            {meetups.length > 0 ? (
-              meetups.map((meetup) => (
+            {filteredMeetups.length > 0 ? (
+              filteredMeetups.map((meetup) => (
                 <CommunityMeetupCard
                   key={meetup.id}
                   meetup={meetup}
