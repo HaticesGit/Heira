@@ -27,6 +27,7 @@ import LoginScreen from "./screens/login";
 import SignUpScreen from "./screens/signUp";
 import VerifySafespaceScreen from "./screens/verifySafespace";
 import VerifyIdentityScreen from "./screens/verifyIdentityScreen";
+import ParticipantsScreen from "./screens/participantsScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -194,6 +195,11 @@ export default function App() {
         <Stack.Screen
           name="VerifyIdentity"
           component={VerifyIdentityScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="Participants"
+          component={ParticipantsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

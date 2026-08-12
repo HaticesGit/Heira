@@ -358,11 +358,10 @@ export default function MeetupDetailScreen({ navigation, route }) {
               style={styles.participantsSection}
               activeOpacity={0.75}
               onPress={() =>
-                console.log(
-                  "Participants pressed:",
-                  meetup.id
-                )
-              }
+              navigation.navigate("Participants", {
+                meetupId: meetup.id,
+              })
+            }
             >
               <View style={styles.participantTitleRow}>
                 <Ionicons
