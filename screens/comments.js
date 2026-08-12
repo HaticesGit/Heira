@@ -11,6 +11,7 @@ export default function CommentsScreen({ navigation, route }) {
 
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
+  const [currentUserId, setCurrentUserId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -101,13 +102,23 @@ export default function CommentsScreen({ navigation, route }) {
     }));
 
     setComments(formattedComments);
-    setLoading(false);
-  };
+setLoading(false);
+};
 
   useEffect(() => {
     fetchComments();
   }, [meetup?.id]);
+useEffect(() => {
+  const fetchCurrentUser = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
+    setCurrentUserId(session?.user?.id || null);
+  };
+
+  fetchCurrentUser();
+}, []);
   const handleSendComment = async () => {
     const trimmedComment = newComment.trim();
 
@@ -181,16 +192,100 @@ export default function CommentsScreen({ navigation, route }) {
   };
 
   const handleOpenUser = (item) => {
-    navigation.navigate("UserProfile", {
-      user: {
-        id: item.userId,
-        username: item.username,
-      },
-    });
-  };
+  navigation.navigate("UserProfile", {
+    user: {
+      id: item.userId,
+      username: item.username,
+    },
+  });
+};
 
+const handleDeleteComment = (comment) => {
+  if (comment.userId !== currentUserId) {
+    return;
+  }
+
+  Alert.alert(
+    "Delete comment?",
+    "Are you sure you want to delete this comment?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          const { data, error } = await supabase
+  .from("comments")
+  .delete()
+  .eq("id", comment.id)
+  .eq("user_id", currentUserId)
+  .select();
+
+if (error) {
+  console.error(
+    "Error deleting comment:",
+    error
+  );
+
+  Alert.alert(
+    "Could not delete comment",
+    "Please try again."
+  );
+
+  return;
+}
+
+if (!data || data.length === 0) {
+  Alert.alert(
+    "Could not delete comment",
+    "This comment could not be removed."
+  );
+
+  return;
+}
+
+setComments((currentComments) =>
+  currentComments.filter(
+    (item) => item.id !== comment.id
+  )
+);
+
+          if (error) {
+            console.error(
+              "Error deleting comment:",
+              error
+            );
+
+            Alert.alert(
+              "Could not delete comment",
+              "Please try again."
+            );
+
+            return;
+          }
+
+          await fetchComments();
+        },
+      },
+    ]
+  );
+};
   const renderComment = ({ item }) => (
-    <View style={styles.commentCard}>
+    <TouchableOpacity
+  style={styles.commentCard}
+  activeOpacity={
+    item.userId === currentUserId ? 0.8 : 1
+  }
+  onLongPress={() => {
+    if (item.userId === currentUserId) {
+      handleDeleteComment(item);
+    }
+  }}
+  delayLongPress={500}
+>
       <TouchableOpacity
         style={styles.avatar}
         activeOpacity={0.8}
@@ -225,7 +320,7 @@ export default function CommentsScreen({ navigation, route }) {
           {item.text}
         </Text>
       </View>
-    </View>
+     </TouchableOpacity>
   );
 
   return (
