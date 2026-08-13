@@ -216,8 +216,12 @@ export default function ProfileScreen({ navigation }) {
                 style={styles.statItem}
                 activeOpacity={0.7}
                 onPress={() =>
-                  console.log("Followers pressed")
-                }
+                navigation.navigate("FollowList", {
+                  userId: profile.id,
+                  username: profile.username,
+                  initialTab: "followers",
+                })
+              }
               >
                 <Text style={styles.statNumber}>
                   {followerCount}
@@ -234,8 +238,12 @@ export default function ProfileScreen({ navigation }) {
                 style={styles.statItem}
                 activeOpacity={0.7}
                 onPress={() =>
-                  console.log("Following pressed")
-                }
+                navigation.navigate("FollowList", {
+                  userId: profile.id,
+                  username: profile.username,
+                  initialTab: "following",
+                })
+              }
               >
                 <Text style={styles.statNumber}>
                   {followingCount}

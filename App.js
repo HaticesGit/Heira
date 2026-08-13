@@ -28,6 +28,7 @@ import SignUpScreen from "./screens/signUp";
 import VerifySafespaceScreen from "./screens/verifySafespace";
 import VerifyIdentityScreen from "./screens/verifyIdentityScreen";
 import ParticipantsScreen from "./screens/participantsScreen";
+import FollowListScreen from "./screens/followListScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -200,6 +201,11 @@ export default function App() {
         <Stack.Screen
           name="Participants"
           component={ParticipantsScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="FollowList"
+          component={FollowListScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

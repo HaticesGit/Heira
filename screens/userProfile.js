@@ -241,26 +241,48 @@ useEffect(() => {
             <Text style={styles.bio}>{user.bio}</Text>
 
             <View style={styles.statsRow}>
-              <TouchableOpacity
-                style={styles.statItem}
-                activeOpacity={0.7}
-                onPress={() => console.log("Followers pressed")}
-              >
-                <Text style={styles.statNumber}>{followerCount}</Text>
-                <Text style={styles.statLabel}>Followers</Text>
-              </TouchableOpacity>
+  <TouchableOpacity
+    style={styles.statItem}
+    activeOpacity={0.7}
+    onPress={() =>
+      navigation.navigate("FollowList", {
+        userId: user.id,
+        username: user.username,
+        initialTab: "followers",
+      })
+    }
+  >
+    <Text style={styles.statNumber}>
+      {followerCount}
+    </Text>
 
-              <View style={styles.statsDivider} />
+    <Text style={styles.statLabel}>
+      Followers
+    </Text>
+  </TouchableOpacity>
 
-              <TouchableOpacity
-                style={styles.statItem}
-                activeOpacity={0.7}
-                onPress={() => console.log("Following pressed")}
-              >
-                <Text style={styles.statNumber}>{followingCount}</Text>
-                <Text style={styles.statLabel}>Following</Text>
-              </TouchableOpacity>
-            </View>
+  <View style={styles.statsDivider} />
+
+  <TouchableOpacity
+    style={styles.statItem}
+    activeOpacity={0.7}
+    onPress={() =>
+      navigation.navigate("FollowList", {
+        userId: user.id,
+        username: user.username,
+        initialTab: "following",
+      })
+    }
+  >
+    <Text style={styles.statNumber}>
+      {followingCount}
+    </Text>
+
+    <Text style={styles.statLabel}>
+      Following
+    </Text>
+  </TouchableOpacity>
+</View>
 
             {currentUserId !== user.id ? (
   <TouchableOpacity
