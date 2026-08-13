@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Image, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator, KeyboardAvoidingView, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
+import * as ImagePicker from "expo-image-picker";
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
 
@@ -11,7 +11,8 @@ export default function AccountSettingsScreen({ navigation }) {
   const [bio, setBio] = useState("");
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
-
+const [profileImage, setProfileImage] = useState(null);
+const [uploadingImage, setUploadingImage] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -32,7 +33,7 @@ export default function AccountSettingsScreen({ navigation }) {
 
         const { data: profile, error } = await supabase
           .from("profiles")
-          .select("username, bio")
+          .select("username, bio, profileIMG_url")
           .eq("id", user.id)
           .single();
 
@@ -49,6 +50,7 @@ export default function AccountSettingsScreen({ navigation }) {
 
         setUsername(profile?.username || "");
         setBio(profile?.bio || "");
+        setProfileImage(profile?.profileIMG_url || null);
       } finally {
         setLoading(false);
       }
@@ -56,6 +58,110 @@ export default function AccountSettingsScreen({ navigation }) {
 
     fetchAccount();
   }, [navigation]);
+
+  const handleChangeProfileImage = async () => {
+  try {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (result.canceled) {
+      return;
+    }
+
+    const selectedImage = result.assets[0];
+
+    setUploadingImage(true);
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      navigation.navigate("Login");
+      return;
+    }
+
+    const response = await fetch(selectedImage.uri);
+    const arrayBuffer = await response.arrayBuffer();
+
+    const extension =
+      selectedImage.fileName?.split(".").pop() || "jpg";
+
+    const filePath = `${user.id}/avatar.${extension}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("profile-images")
+      .upload(filePath, arrayBuffer, {
+        contentType:
+          selectedImage.mimeType || "image/jpeg",
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.error(
+        "Error uploading profile image:",
+        uploadError
+      );
+
+      Alert.alert(
+        "Upload failed",
+        "Your profile image could not be uploaded."
+      );
+
+      return;
+    }
+
+    const {
+      data: { publicUrl },
+    } = supabase.storage
+      .from("profile-images")
+      .getPublicUrl(filePath);
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        profileIMG_url: publicUrl,
+      })
+      .eq("id", user.id);
+
+    if (profileError) {
+      console.error(
+        "Error saving profile image URL:",
+        profileError
+      );
+
+      Alert.alert(
+        "Could not save image",
+        "Please try again."
+      );
+
+      return;
+    }
+
+    setProfileImage(publicUrl);
+
+    Alert.alert(
+      "Profile photo updated",
+      "Your new profile photo has been saved."
+    );
+  } catch (error) {
+    console.error(
+      "Unexpected profile image error:",
+      error
+    );
+
+    Alert.alert(
+      "Something went wrong",
+      "Please try again."
+    );
+  } finally {
+    setUploadingImage(false);
+  }
+};
 
   const handleSaveProfile = async () => {
     const trimmedBio = bio.trim();
@@ -197,7 +303,48 @@ export default function AccountSettingsScreen({ navigation }) {
           <Text style={styles.sectionTitle}>
             Profile
           </Text>
+        <View style={styles.profileImageSection}>
+  <TouchableOpacity
+    style={styles.profileImageButton}
+    activeOpacity={0.8}
+    onPress={handleChangeProfileImage}
+    disabled={uploadingImage}
+  >
+    {profileImage ? (
+      <Image
+        source={{ uri: profileImage }}
+        style={styles.profileImage}
+      />
+    ) : (
+      <View style={styles.profileImagePlaceholder}>
+        <Ionicons
+          name="person"
+          size={42}
+          color={COLORS.blue}
+        />
+      </View>
+    )}
 
+    <View style={styles.cameraBadge}>
+      {uploadingImage ? (
+        <ActivityIndicator
+          size="small"
+          color={COLORS.offWhite}
+        />
+      ) : (
+        <Ionicons
+          name="camera"
+          size={18}
+          color={COLORS.offWhite}
+        />
+      )}
+    </View>
+  </TouchableOpacity>
+
+  <Text style={styles.changePhotoText}>
+    Change profile photo
+  </Text>
+</View>
           <View style={styles.card}>
             <Text style={styles.label}>
               Username
@@ -478,4 +625,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     marginTop: 10,
   },
+  profileImageSection: {
+  alignItems: "center",
+  marginBottom: 22,
+},
+
+profileImageButton: {
+  width: 110,
+  height: 110,
+  borderRadius: 55,
+  position: "relative",
+},
+
+profileImage: {
+  width: 110,
+  height: 110,
+  borderRadius: 55,
+},
+
+profileImagePlaceholder: {
+  width: 110,
+  height: 110,
+  borderRadius: 55,
+  backgroundColor: COLORS.lightBlue,
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+cameraBadge: {
+  position: "absolute",
+  right: 0,
+  bottom: 3,
+  width: 34,
+  height: 34,
+  borderRadius: 17,
+  backgroundColor: COLORS.green,
+  alignItems: "center",
+  justifyContent: "center",
+  borderWidth: 2,
+  borderColor: COLORS.offWhite,
+},
+
+changePhotoText: {
+  color: COLORS.green,
+  fontSize: 14,
+  fontWeight: "600",
+  marginTop: 8,
+},
 });

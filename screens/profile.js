@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -184,12 +184,20 @@ export default function ProfileScreen({ navigation }) {
 
           <View style={styles.profileContent}>
             <View style={styles.avatarWrapper}>
-              <Ionicons
-                name="person"
-                size={62}
-                color={COLORS.blue}
-              />
-            </View>
+  {profile?.profileIMG_url ? (
+    <Image
+      source={{ uri: profile.profileIMG_url }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={62}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
             <View style={styles.usernameRow}>
               <Text style={styles.username}>
@@ -527,9 +535,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 3,
-    borderColor: COLORS.blue,
+    borderColor: COLORS.offWhite,
     marginBottom: 14,
-
     shadowColor: COLORS.offBlack,
     shadowOffset: {
       width: 0,
@@ -773,4 +780,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 8,
   },
+  profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 60,
+},
 });
