@@ -29,6 +29,7 @@ import VerifySafespaceScreen from "./screens/verifySafespace";
 import VerifyIdentityScreen from "./screens/verifyIdentityScreen";
 import ParticipantsScreen from "./screens/participantsScreen";
 import FollowListScreen from "./screens/followListScreen";
+import AccountSettingsScreen from "./screens/accountSettings";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -206,6 +207,11 @@ export default function App() {
         <Stack.Screen
           name="FollowList"
           component={FollowListScreen}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="AccountSettings"
+          component={AccountSettingsScreen}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>

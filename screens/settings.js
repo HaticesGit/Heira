@@ -63,12 +63,12 @@ export default function SettingsScreen({ navigation }) {
           />
 
           <SettingRow
-            label="Account settings"
-            buttonText="View"
-            onPress={() => {
-              console.log("Account settings pressed");
-            }}
-          />
+          label="Account settings"
+          buttonText="View"
+          onPress={() =>
+            navigation.navigate("AccountSettings")
+          }
+        />
         </View>
       </View>
     </SafeAreaView>
