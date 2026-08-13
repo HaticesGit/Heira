@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
 
@@ -17,52 +17,25 @@ const CATEGORIES = [
 
 export default function CreateMeetupScreen({ navigation }) {
   const [location, setLocation] = useState("");
-  const [date, setDate] = useState("");
-  const [time, setTime] = useState("");
+  const [date, setDate] = useState(null);
+  const [time, setTime] = useState(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showTimePicker, setShowTimePicker] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  const formatDateForSupabase = (dateValue) => {
-    const parts = dateValue.split("/");
 
-    if (parts.length !== 3) {
-      return null;
-    }
-
-    const [day, month, year] = parts;
-
-    const fullYear =
-      year.length === 2
-        ? `20${year}`
-        : year;
-
-    return `${fullYear}-${month.padStart(2, "0")}-${day.padStart(2, "0")}`;
-  };
-
-  const formatTimeForSupabase = (timeValue) => {
-    const parts = timeValue.split(":");
-
-    if (parts.length !== 2) {
-      return null;
-    }
-
-    const [hours, minutes] = parts;
-
-    return `${hours.padStart(2, "0")}:${minutes.padStart(2, "0")}:00`;
-  };
 
   const handlePostMeetup = async () => {
   const trimmedLocation = location.trim();
-  const trimmedDate = date.trim();
-  const trimmedTime = time.trim();
 
   if (
-    !trimmedLocation ||
-    !trimmedDate ||
-    !trimmedTime ||
-    !selectedCategory
-  ) {
+  !trimmedLocation ||
+  !date ||
+  !time ||
+  !selectedCategory
+) {
     Alert.alert(
       "Missing information",
       "Please fill in the location, date, time and category."
@@ -70,30 +43,32 @@ export default function CreateMeetupScreen({ navigation }) {
 
     return;
   }
+const meetupDateTime = new Date(
+  date.getFullYear(),
+  date.getMonth(),
+  date.getDate(),
+  time.getHours(),
+  time.getMinutes()
+);
 
+if (meetupDateTime <= new Date()) {
+  Alert.alert(
+    "Invalid time",
+    "Please choose a date and time in the future."
+  );
+  return;
+}
   const databaseDate =
-    formatDateForSupabase(trimmedDate);
+  `${date.getFullYear()}-${String(
+    date.getMonth() + 1
+  ).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
 
-  const databaseTime =
-    formatTimeForSupabase(trimmedTime);
-
-  if (!databaseDate) {
-    Alert.alert(
-      "Invalid date",
-      "Please enter the date as DD/MM/YY."
-    );
-
-    return;
-  }
-
-  if (!databaseTime) {
-    Alert.alert(
-      "Invalid time",
-      "Please enter the time as HH:MM."
-    );
-
-    return;
-  }
+const databaseTime =
+  `${String(time.getHours()).padStart(2, "0")}:${String(
+    time.getMinutes()
+  ).padStart(2, "0")}:00`;
 
   // Check if someone is logged in
   const {
@@ -240,34 +215,95 @@ if (!profile.is_verified) {
             <View style={styles.divider} />
 
             <FormField
-              label="Date"
-              icon="calendar"
-            >
-              <TextInput
-                style={styles.input}
-                value={date}
-                onChangeText={setDate}
-                placeholder="30/03/26"
-                placeholderTextColor={COLORS.span}
-                keyboardType="numbers-and-punctuation"
-              />
-            </FormField>
+  label="Date"
+  icon="calendar"
+>
+  <TouchableOpacity
+    style={styles.pickerInput}
+    activeOpacity={0.8}
+    onPress={() => setShowDatePicker(true)}
+  >
+    <Text
+      style={[
+        styles.pickerText,
+        !date && styles.placeholderText,
+      ]}
+    >
+      {date
+        ? date.toLocaleDateString("en-GB")
+        : "Choose a date"}
+    </Text>
+
+    <Ionicons
+      name="calendar-outline"
+      size={20}
+      color={COLORS.blue}
+    />
+  </TouchableOpacity>
+
+  {showDatePicker ? (
+    <DateTimePicker
+      value={date || new Date()}
+      mode="date"
+      minimumDate={new Date()}
+      onChange={(event, selectedDate) => {
+        setShowDatePicker(false);
+
+        if (selectedDate) {
+          setDate(selectedDate);
+        }
+      }}
+    />
+  ) : null}
+</FormField>
 
             <View style={styles.divider} />
 
             <FormField
-              label="Time"
-              icon="time"
-            >
-              <TextInput
-                style={styles.input}
-                value={time}
-                onChangeText={setTime}
-                placeholder="16:00"
-                placeholderTextColor={COLORS.span}
-                keyboardType="numbers-and-punctuation"
-              />
-            </FormField>
+  label="Time"
+  icon="time"
+>
+  <TouchableOpacity
+    style={styles.pickerInput}
+    activeOpacity={0.8}
+    onPress={() => setShowTimePicker(true)}
+  >
+    <Text
+      style={[
+        styles.pickerText,
+        !time && styles.placeholderText,
+      ]}
+    >
+      {time
+        ? time.toLocaleTimeString("en-GB", {
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : "Choose a time"}
+    </Text>
+
+    <Ionicons
+      name="time-outline"
+      size={20}
+      color={COLORS.blue}
+    />
+  </TouchableOpacity>
+
+  {showTimePicker ? (
+    <DateTimePicker
+      value={time || new Date()}
+      mode="time"
+      is24Hour={true}
+      onChange={(event, selectedTime) => {
+        setShowTimePicker(false);
+
+        if (selectedTime) {
+          setTime(selectedTime);
+        }
+      }}
+    />
+  ) : null}
+</FormField>
 
             <View style={styles.divider} />
 
@@ -644,4 +680,16 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: "700",
   },
+  pickerInput: {
+  minHeight: 42,
+  paddingHorizontal: 12,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+},
+
+pickerText: {
+  color: COLORS.blue,
+  fontSize: 15,
+},
 });
