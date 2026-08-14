@@ -697,12 +697,31 @@ const openSafespace = (safespace) => {
 
 {isNavigating ? (
   <NavigationInstruction
-    step={routeSteps[currentStepIndex]}
-    onCancel={() => {
+  step={routeSteps[currentStepIndex]}
+  isFirstStep={currentStepIndex === 0}
+  isLastStep={currentStepIndex === routeSteps.length - 1}
+
+  onPrevious={() => {
+    if (currentStepIndex > 0) {
+      setCurrentStepIndex((current) => current - 1);
+    }
+  }}
+
+  onNext={() => {
+    if (currentStepIndex < routeSteps.length - 1) {
+      setCurrentStepIndex((current) => current + 1);
+    } else {
       setIsNavigating(false);
       setCurrentStepIndex(0);
-    }}
-  />
+      clearRoute();
+    }
+  }}
+
+  onCancel={() => {
+    setIsNavigating(false);
+    setCurrentStepIndex(0);
+  }}
+/>
 ) : null}
 
       {showSafespaces ? (

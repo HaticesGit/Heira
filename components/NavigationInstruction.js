@@ -53,10 +53,7 @@ const getInstructionIcon = (type) => {
   }
 };
 
-export default function NavigationInstruction({
-  step,
-  onCancel,
-}) {
+export default function NavigationInstruction({ step, onCancel, onNext, onPrevious, isFirstStep, isLastStep }) {
   if (!step) {
     return null;
   }
@@ -83,14 +80,50 @@ export default function NavigationInstruction({
           {distance}
         </Text>
 
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onCancel}
-        >
-          <Text style={styles.cancelText}>
-            Cancel
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actions}>
+  <TouchableOpacity
+    activeOpacity={0.7}
+    onPress={onCancel}
+  >
+    <Text style={styles.cancelText}>
+      Cancel
+    </Text>
+  </TouchableOpacity>
+
+  <View style={styles.stepButtons}>
+    {!isFirstStep && (
+      <TouchableOpacity
+        style={styles.previousButton}
+        activeOpacity={0.8}
+        onPress={onPrevious}
+      >
+        <Ionicons
+          name="chevron-back"
+          size={20}
+          color={COLORS.blue}
+        />
+      </TouchableOpacity>
+    )}
+
+    <TouchableOpacity
+      style={styles.nextButton}
+      activeOpacity={0.8}
+      onPress={onNext}
+    >
+      <Text style={styles.nextButtonText}>
+        {isLastStep ? "Done" : "Next"}
+      </Text>
+
+      {!isLastStep && (
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={COLORS.offWhite}
+        />
+      )}
+    </TouchableOpacity>
+  </View>
+</View>
       </View>
     </View>
   );
@@ -142,4 +175,42 @@ const styles = StyleSheet.create({
     color: COLORS.red,
     fontSize: 13,
   },
+  actions: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+},
+
+stepButtons: {
+  flexDirection: "row",
+  alignItems: "center",
+},
+
+previousButton: {
+  width: 38,
+  height: 36,
+  borderRadius: 8,
+  borderWidth: 1,
+  borderColor: COLORS.midGray,
+  alignItems: "center",
+  justifyContent: "center",
+  marginRight: 7,
+},
+
+nextButton: {
+  minWidth: 72,
+  height: 36,
+  borderRadius: 8,
+  backgroundColor: COLORS.green,
+  paddingHorizontal: 12,
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "center",
+},
+
+nextButtonText: {
+  color: COLORS.offWhite,
+  fontSize: 13,
+  fontWeight: "700",
+},
 });
