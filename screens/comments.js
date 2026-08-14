@@ -192,11 +192,7 @@ useEffect(() => {
         {
           meetup_id: meetup.id,
           user_id: user.id,
-
-          // We keep this temporarily so your existing
-          // username column can stay in the database.
           username: profile.username,
-
           text: trimmedComment,
         },
       ]);
@@ -247,40 +243,11 @@ const handleDeleteComment = (comment) => {
         style: "destructive",
         onPress: async () => {
           const { data, error } = await supabase
-  .from("comments")
-  .delete()
-  .eq("id", comment.id)
-  .eq("user_id", currentUserId)
-  .select();
-
-if (error) {
-  console.error(
-    "Error deleting comment:",
-    error
-  );
-
-  Alert.alert(
-    "Could not delete comment",
-    "Please try again."
-  );
-
-  return;
-}
-
-if (!data || data.length === 0) {
-  Alert.alert(
-    "Could not delete comment",
-    "This comment could not be removed."
-  );
-
-  return;
-}
-
-setComments((currentComments) =>
-  currentComments.filter(
-    (item) => item.id !== comment.id
-  )
-);
+            .from("comments")
+            .delete()
+            .eq("id", comment.id)
+            .eq("user_id", currentUserId)
+            .select();
 
           if (error) {
             console.error(
@@ -296,7 +263,20 @@ setComments((currentComments) =>
             return;
           }
 
-          await fetchComments();
+          if (!data || data.length === 0) {
+            Alert.alert(
+              "Could not delete comment",
+              "This comment could not be removed."
+            );
+
+            return;
+          }
+
+          setComments((currentComments) =>
+            currentComments.filter(
+              (item) => item.id !== comment.id
+            )
+          );
         },
       },
     ]
