@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
+import FilterModal from "../components/FilterModal";
 
 const INITIAL_RECENT_SEARCHES = [];
 
@@ -17,6 +18,14 @@ export default function SearchScreen({ navigation }) {
   const [currentUserId, setCurrentUserId] = useState(null);
   const [userResults, setUserResults] = useState([]);
   const [meetupResults, setMeetupResults] = useState([]);
+  const [filterModalVisible, setFilterModalVisible] = useState(false);
+
+const [filters, setFilters] = useState({
+  categories: [],
+  date: "",
+  time: "",
+  verifiedHostsOnly: false,
+});
 
   const normalizedQuery = searchQuery.trim().toLowerCase();
   useFocusEffect(
@@ -85,6 +94,35 @@ export default function SearchScreen({ navigation }) {
     if (meetupsError) {
       console.error("Error searching meetups:", meetupsError);
     } else {
+      let verifiedCreatorIds = [];
+
+if (filters.verifiedHostsOnly && meetups?.length > 0) {
+  const creatorIds = [
+    ...new Set(
+      meetups
+        .map((meetup) => meetup.creator_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  const { data: verifiedProfiles, error: verifiedError } =
+    await supabase
+      .from("profiles")
+      .select("id")
+      .in("id", creatorIds)
+      .eq("is_verified", true);
+
+  if (verifiedError) {
+    console.error(
+      "Error fetching verified hosts:",
+      verifiedError
+    );
+  } else {
+    verifiedCreatorIds = (verifiedProfiles || []).map(
+      (profile) => profile.id
+    );
+  }
+}
       const formattedMeetups = (meetups || []).map((meetup) => {
   const [year, month, day] = meetup.meetup_date.split("-");
 
@@ -99,12 +137,80 @@ export default function SearchScreen({ navigation }) {
   };
 });
 
-setMeetupResults(formattedMeetups);
+let filteredMeetups = formattedMeetups;
+
+if (filters.categories.length > 0) {
+  filteredMeetups = filteredMeetups.filter((meetup) =>
+    filters.categories.includes(meetup.category)
+  );
+}
+if (filters.date) {
+  const today = new Date();
+  const tomorrow = new Date();
+
+  tomorrow.setDate(today.getDate() + 1);
+
+  filteredMeetups = filteredMeetups.filter((meetup) => {
+    const [day, month, year] = meetup.date.split("/");
+
+    const meetupDate = new Date(
+      2000 + Number(year),
+      Number(month) - 1,
+      Number(day)
+    );
+
+    if (filters.date === "Today") {
+      return meetupDate.toDateString() === today.toDateString();
+    }
+
+    if (filters.date === "Tomorrow") {
+      return meetupDate.toDateString() === tomorrow.toDateString();
+    }
+
+    if (filters.date === "This week") {
+      const endOfWeek = new Date(today);
+      endOfWeek.setDate(today.getDate() + 7);
+
+      return meetupDate >= today && meetupDate <= endOfWeek;
+    }
+
+    return true;
+  });
+}
+if (filters.time) {
+  filteredMeetups = filteredMeetups.filter((meetup) => {
+    const hour = Number(meetup.time.split(":")[0]);
+
+    if (filters.time === "Morning") {
+      return hour >= 6 && hour < 12;
+    }
+
+    if (filters.time === "Afternoon") {
+      return hour >= 12 && hour < 18;
+    }
+
+    if (filters.time === "Evening") {
+      return hour >= 18 && hour < 22;
+    }
+
+    if (filters.time === "Night") {
+      return hour >= 22 || hour < 6;
+    }
+
+    return true;
+  });
+}
+if (filters.verifiedHostsOnly) {
+  filteredMeetups = filteredMeetups.filter((meetup) =>
+    verifiedCreatorIds.includes(meetup.creatorId)
+  );
+}
+setMeetupResults(filteredMeetups);
     }
   };
 
   searchSupabase();
-}, [normalizedQuery]);
+}, [normalizedQuery, filters]);
 
   const removeRecentSearch = (search) => {
     setRecentSearches((currentSearches) =>
@@ -369,7 +475,7 @@ const toggleFollow = async (userId) => {
           <TouchableOpacity
             style={styles.filterButton}
             activeOpacity={0.8}
-            onPress={() => console.log("Search filters pressed")}
+            onPress={() => setFilterModalVisible(true)}
             accessibilityRole="button"
             accessibilityLabel="Open search filters"
           >
@@ -499,6 +605,13 @@ const toggleFollow = async (userId) => {
   </ScrollView>
 ) : null}
       </KeyboardAvoidingView>
+      <FilterModal
+  visible={filterModalVisible}
+  onClose={() => setFilterModalVisible(false)}
+  onApply={(selectedFilters) => {
+    setFilters(selectedFilters);
+  }}
+/>
     </SafeAreaView>
   );
 }

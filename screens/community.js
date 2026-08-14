@@ -23,10 +23,11 @@ const filteredMeetups = meetups.filter((meetup) => {
   }
 
   const {
-    categories = [],
-    date = "",
-    time = "",
-  } = activeFilters;
+  categories = [],
+  date = "",
+  time = "",
+  verifiedHostsOnly = false,
+} = activeFilters;
 
   if (
     categories.length > 0 &&
@@ -97,7 +98,9 @@ const filteredMeetups = meetups.filter((meetup) => {
       return false;
     }
   }
-
+if (verifiedHostsOnly && !meetup.isVerified) {
+  return false;
+}
   return true;
 });
 
@@ -207,7 +210,7 @@ if (creatorIds.length > 0) {
   const { data: profileData, error: profileError } =
     await supabase
       .from("profiles")
-      .select("id, profileIMG_url")
+      .select("id, profileIMG_url, is_verified")
       .in("id", creatorIds);
 
   if (profileError) {
@@ -221,10 +224,14 @@ if (creatorIds.length > 0) {
 }
 
 const profileImagesByUserId = {};
+const verifiedByUserId = {};
 
 creatorProfiles.forEach((profile) => {
   profileImagesByUserId[profile.id] =
     profile.profileIMG_url || null;
+
+  verifiedByUserId[profile.id] =
+    profile.is_verified || false;
 });
     const formattedMeetups = meetupData.map((meetup) => ({
   id: meetup.id.toString(),
@@ -232,6 +239,8 @@ creatorProfiles.forEach((profile) => {
   username: meetup.username,
   profileIMG_url:
     profileImagesByUserId[meetup.creator_id] || null,
+    isVerified:
+  verifiedByUserId[meetup.creator_id] || false,
   participantCount:
     participantCounts[meetup.id] || 0,
   location: meetup.location,
