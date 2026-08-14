@@ -277,6 +277,13 @@ creatorProfiles.forEach((profile) => {
   }
 
   const user = session.user;
+  if (meetup.creatorId === user.id) {
+  Alert.alert(
+    "You're the host",
+    "You don't need to join your own meet-up."
+  );
+  return;
+}
 
   const { data: existingParticipant, error: checkError } = await supabase
     .from("meetup_participants")

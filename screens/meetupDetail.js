@@ -15,6 +15,7 @@
     const [isJoined, setIsJoined] = useState(false);
     const [joinLoading, setJoinLoading] = useState(false);
     const [participantProfiles, setParticipantProfiles] = useState([]);
+    const [currentUserId, setCurrentUserId] = useState(null);
 
     const formatDate = (date) => {
       if (!date) return "";
@@ -150,6 +151,8 @@
           data: { session },
         } = await supabase.auth.getSession();
 
+        setCurrentUserId(session?.user?.id || null);
+
         let joined = false;
 
         if (session) {
@@ -211,6 +214,13 @@
         navigation.navigate("Login");
         return;
       }
+      if (session.user.id === meetup.creatorId) {
+  Alert.alert(
+    "You're the host",
+    "You don't need to join your own meet-up."
+  );
+  return;
+}
 
       setJoinLoading(true);
 
@@ -299,6 +309,8 @@
     }
 
     const visibleParticipants = participantProfiles.slice(0, 5);
+
+    const isCreator = currentUserId === meetup.creatorId;
 
     return (
       <SafeAreaView style={styles.safeArea} edges={["top"]}>
@@ -496,39 +508,44 @@
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[
-                styles.joinButton,
-                isJoined && styles.joinButtonActive,
-              ]}
-              activeOpacity={0.8}
-              onPress={handleJoinMeetup}
-              disabled={joinLoading}
-            >
-              {joinLoading ? (
-                <ActivityIndicator
-                  size="small"
-                  color={COLORS.offWhite}
-                />
-              ) : (
-                <>
-                  <Ionicons
-                    name={
-                      isJoined
-                        ? "checkmark-circle"
-                        : "checkmark-circle-outline"
-                    }
-                    size={22}
-                    color={COLORS.offWhite}
-                  />
+  style={[
+    styles.joinButton,
+    isJoined && styles.joinButtonActive,
+    isCreator && styles.hostingButton,
+  ]}
+  activeOpacity={0.8}
+  onPress={handleJoinMeetup}
+  disabled={joinLoading || isCreator}
+>
+  {joinLoading ? (
+    <ActivityIndicator
+      size="small"
+      color={COLORS.offWhite}
+    />
+  ) : (
+    <>
+      <Ionicons
+        name={
+          isCreator
+            ? "star"
+            : isJoined
+            ? "checkmark-circle"
+            : "checkmark-circle-outline"
+        }
+        size={22}
+        color={COLORS.offWhite}
+      />
 
-                  <Text style={styles.joinButtonText}>
-                    {isJoined
-                      ? "Joined"
-                      : "I’ll be there"}
-                  </Text>
-                </>
-              )}
-            </TouchableOpacity>
+      <Text style={styles.joinButtonText}>
+        {isCreator
+          ? "Hosting"
+          : isJoined
+          ? "Joined"
+          : "I’ll be there"}
+      </Text>
+    </>
+  )}
+</TouchableOpacity>
           </View>
         </View>
       </SafeAreaView>
@@ -792,5 +809,8 @@ participantAvatarImage: {
   width: "100%",
   height: "100%",
   borderRadius: 19,
+},
+hostingButton: {
+  opacity: 0.75,
 },
   });
