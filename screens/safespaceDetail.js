@@ -12,17 +12,14 @@ export default function SafespaceDetailScreen({ navigation, route }) {
   const [averageRating, setAverageRating] = useState(0);
   const [reviewCount, setReviewCount] = useState(0);
   const [photos, setPhotos] = useState([]);
-  if (!safespace) {
-    return null;
-  }
   useFocusEffect(
   useCallback(() => {
+    if (!safespace) return;
     const fetchReviewSummary = async () => {
       const { data, error } = await supabase
         .from("safespace_reviews")
         .select("rating")
         .eq("safespace_id", safespace.id);
-
       if (error) {
         console.error("Error fetching review summary:", error);
         return;
@@ -61,8 +58,11 @@ export default function SafespaceDetailScreen({ navigation, route }) {
 
     fetchReviewSummary();
     fetchPhotos();
-  }, [safespace.id])
+  }, [safespace?.id])
 );
+if (!safespace) {
+    return null;
+  }
 
   const handleGetDirections = () => {
     navigation.navigate("MainTabs", {
