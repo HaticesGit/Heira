@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
@@ -14,7 +14,18 @@ export default function ReviewCard({ review, onUserPress }) {
         accessibilityRole="button"
         accessibilityLabel={`Open ${review.username}'s profile`}
       >
-        <Ionicons name="person" size={22} color={COLORS.blue} />
+        {review.profileImage ? (
+  <Image
+    source={{ uri: review.profileImage }}
+    style={styles.profileImage}
+  />
+) : (
+  <Ionicons
+    name="person"
+    size={22}
+    color={COLORS.blue}
+  />
+)}
       </TouchableOpacity>
 
       <View style={styles.content}>
@@ -115,4 +126,9 @@ const styles = StyleSheet.create({
     fontSize: 15,
     lineHeight: 21,
   },
+  profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 20,
+},
 });

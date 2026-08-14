@@ -36,7 +36,8 @@ useFocusEffect(
           created_at,
           user_id,
           profiles (
-            username
+            username,
+            profileIMG_url
           )
         `)
         .eq("safespace_id", safespace.id)
@@ -54,6 +55,7 @@ useFocusEffect(
         date: new Date(review.created_at).toLocaleDateString(),
         rating: review.rating,
         text: review.comment,
+        profileImage: review.profiles?.profileIMG_url || null,
       }));
 
       setReviews(formattedReviews);
@@ -217,12 +219,13 @@ const highestRatingAmount = Math.max(
                 key={review.id}
                 review={review}
                 onUserPress={() =>
-                  navigation.navigate("UserProfile", {
-                    user: {
-                      username: review.username,
-                    },
-                  })
-                }
+  navigation.navigate("UserProfile", {
+    user: {
+      id: review.userId,
+      username: review.username,
+    },
+  })
+}
               />
             ))}
           </View>
