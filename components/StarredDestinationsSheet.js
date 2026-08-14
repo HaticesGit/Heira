@@ -121,7 +121,7 @@ export default function StarredDestinationsSheet({
         />
 
         <Text style={styles.tipText}>
-          Tip: long press on the map to star any place
+          Tip: long press the star icon to save a destination
         </Text>
       </View>
     </View>
