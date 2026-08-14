@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, ScrollView, Alert, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -24,8 +24,33 @@ export default function CreateMeetupScreen({ navigation }) {
   const [selectedCategory, setSelectedCategory] = useState("");
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
 
 
+  useEffect(() => {
+  const fetchProfileImage = async () => {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session) return;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("profileIMG_url")
+      .eq("id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error("Error fetching profile image:", error);
+      return;
+    }
+
+    setProfileImage(data?.profileIMG_url || null);
+  };
+
+  fetchProfileImage();
+}, []);
 
   const handlePostMeetup = async () => {
   const trimmedLocation = location.trim();
@@ -184,11 +209,18 @@ if (!profile.is_verified) {
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Profile")}
           >
-            <Ionicons
-              name="person"
-              size={22}
-              color={COLORS.blue}
-            />
+            {profileImage ? (
+  <Image
+    source={{ uri: profileImage }}
+    style={styles.profileImage}
+  />
+) : (
+  <Ionicons
+    name="person"
+    size={22}
+    color={COLORS.blue}
+  />
+)}
           </TouchableOpacity>
         </View>
 
@@ -691,5 +723,10 @@ const styles = StyleSheet.create({
 pickerText: {
   color: COLORS.blue,
   fontSize: 15,
+},
+profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 22,
 },
 });
