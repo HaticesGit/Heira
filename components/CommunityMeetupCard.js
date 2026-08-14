@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, Image } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { COLORS } from "../constants/colors";
@@ -19,12 +19,20 @@ export default function CommunityMeetupCard({
     >
       <View style={styles.userRow}>
         <View style={styles.avatar}>
-          <Ionicons
-            name="person"
-            size={23}
-            color={COLORS.blue}
-          />
-        </View>
+  {meetup.profileIMG_url ? (
+    <Image
+      source={{ uri: meetup.profileIMG_url }}
+      style={styles.avatarImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={23}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
         <Text style={styles.username}>
           {meetup.username}
@@ -282,4 +290,9 @@ const styles = StyleSheet.create({
     color: COLORS.green,
     fontWeight: "700",
   },
+  avatarImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 21,
+},
 });

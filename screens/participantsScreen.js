@@ -6,6 +6,7 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
+  Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -55,7 +56,7 @@ export default function ParticipantsScreen({ navigation, route }) {
       const { data: profileData, error: profileError } =
         await supabase
           .from("profiles")
-          .select("id, username, is_verified")
+          .select("id, username, is_verified, profileIMG_url")
           .in("id", userIds);
 
       if (profileError) {
@@ -94,13 +95,21 @@ export default function ParticipantsScreen({ navigation, route }) {
           })
         }
       >
-        <View style={styles.avatar}>
-          <Ionicons
-            name="person"
-            size={24}
-            color={COLORS.blue}
-          />
-        </View>
+       <View style={styles.avatar}>
+  {item.profileIMG_url ? (
+    <Image
+      source={{ uri: item.profileIMG_url }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={24}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
         <View style={styles.participantInfo}>
           <View style={styles.nameRow}>
@@ -311,4 +320,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 23,
+},
 });

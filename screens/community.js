@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -15,6 +15,7 @@ export default function CommunityScreen({ navigation }) {
   const [joinedMeetups, setJoinedMeetups] = useState({});
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
+  const [currentUserImage, setCurrentUserImage] = useState(null);
 
 const filteredMeetups = meetups.filter((meetup) => {
   if (!activeFilters) {
@@ -118,6 +119,31 @@ const filteredMeetups = meetups.filter((meetup) => {
   setLoading(true);
 
   try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (session?.user) {
+  const { data: currentProfile, error: currentProfileError } =
+    await supabase
+      .from("profiles")
+      .select("profileIMG_url")
+      .eq("id", session.user.id)
+      .single();
+
+  if (currentProfileError) {
+    console.error(
+      "Error fetching current profile image:",
+      currentProfileError
+    );
+  } else {
+    setCurrentUserImage(
+      currentProfile?.profileIMG_url || null
+    );
+  }
+} else {
+  setCurrentUserImage(null);
+}
     const { data: meetupData, error: meetupError } = await supabase
       .from("meetups")
       .select("*")
@@ -146,10 +172,6 @@ const filteredMeetups = meetups.filter((meetup) => {
       return;
     }
 
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-
     const commentCounts = {};
 
     commentData.forEach((comment) => {
@@ -171,17 +193,54 @@ const filteredMeetups = meetups.filter((meetup) => {
         userJoinedMeetups[participant.meetup_id] = true;
       }
     });
+    const creatorIds = [
+  ...new Set(
+    meetupData
+      .map((meetup) => meetup.creator_id)
+      .filter(Boolean)
+  ),
+];
 
+let creatorProfiles = [];
+
+if (creatorIds.length > 0) {
+  const { data: profileData, error: profileError } =
+    await supabase
+      .from("profiles")
+      .select("id, profileIMG_url")
+      .in("id", creatorIds);
+
+  if (profileError) {
+    console.error(
+      "Error fetching meetup creator profiles:",
+      profileError
+    );
+  } else {
+    creatorProfiles = profileData || [];
+  }
+}
+
+const profileImagesByUserId = {};
+
+creatorProfiles.forEach((profile) => {
+  profileImagesByUserId[profile.id] =
+    profile.profileIMG_url || null;
+});
     const formattedMeetups = meetupData.map((meetup) => ({
-      id: meetup.id.toString(),
-      username: meetup.username,
-      participantCount: participantCounts[meetup.id] || 0,
-      location: meetup.location,
-      date: formatDate(meetup.meetup_date),
-      time: formatTime(meetup.meetup_time),
-      category: meetup.category,
-      commentCount: commentCounts[meetup.id] || 0,
-    }));
+  id: meetup.id.toString(),
+  creatorId: meetup.creator_id,
+  username: meetup.username,
+  profileIMG_url:
+    profileImagesByUserId[meetup.creator_id] || null,
+  participantCount:
+    participantCounts[meetup.id] || 0,
+  location: meetup.location,
+  date: formatDate(meetup.meetup_date),
+  time: formatTime(meetup.meetup_time),
+  category: meetup.category,
+  commentCount:
+    commentCounts[meetup.id] || 0,
+}));
 
     setMeetups(formattedMeetups);
     setJoinedMeetups(userJoinedMeetups);
@@ -284,16 +343,24 @@ const filteredMeetups = meetups.filter((meetup) => {
           </Text>
 
           <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate("Profile")}
-          >
-            <Ionicons
-              name="person"
-              size={23}
-              color={COLORS.blue}
-            />
-          </TouchableOpacity>
+  style={styles.profileButton}
+  activeOpacity={0.8}
+  onPress={() => navigation.navigate("Profile")}
+>
+  {currentUserImage ? (
+    <Image
+      source={{ uri: currentUserImage }}
+      style={styles.profileButtonImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={23}
+      color={COLORS.blue}
+    />
+  )}
+</TouchableOpacity>
         </View>
 
         <View style={styles.searchSection}>
@@ -547,4 +614,9 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     elevation: 6,
   },
+  profileButtonImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 22,
+},
 });

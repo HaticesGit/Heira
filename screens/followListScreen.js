@@ -1,12 +1,5 @@
 import React, { useCallback, useState } from "react";
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -55,7 +48,7 @@ export default function FollowListScreen({ navigation, route }) {
         const { data: followerProfiles, error } =
           await supabase
             .from("profiles")
-            .select("id, username, is_verified")
+            .select("id, username, is_verified, profileIMG_url")
             .in("id", followerIds);
 
         if (error) {
@@ -92,7 +85,7 @@ export default function FollowListScreen({ navigation, route }) {
         const { data: followingProfiles, error } =
           await supabase
             .from("profiles")
-            .select("id, username, is_verified")
+            .select("id, username, is_verified, profileIMG_url")
             .in("id", followingIds);
 
         if (error) {
@@ -134,12 +127,20 @@ export default function FollowListScreen({ navigation, route }) {
         }
       >
         <View style={styles.avatar}>
-          <Ionicons
-            name="person"
-            size={23}
-            color={COLORS.blue}
-          />
-        </View>
+  {item.profileIMG_url ? (
+    <Image
+      source={{ uri: item.profileIMG_url }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={23}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
         <View style={styles.userInfo}>
           <View style={styles.usernameRow}>
@@ -401,4 +402,9 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 12,
   },
+  profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 23,
+},
 });

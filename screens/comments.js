@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -12,6 +12,7 @@ export default function CommentsScreen({ navigation, route }) {
   const [comments, setComments] = useState([]);
   const [newComment, setNewComment] = useState("");
   const [currentUserId, setCurrentUserId] = useState(null);
+  const [currentUserImage, setCurrentUserImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -70,7 +71,8 @@ export default function CommentsScreen({ navigation, route }) {
         user_id,
         username,
         profiles (
-          username
+          username,
+          profileIMG_url
         )
       `)
       .eq("meetup_id", meetup.id)
@@ -89,17 +91,20 @@ export default function CommentsScreen({ navigation, route }) {
     }
 
     const formattedComments = data.map((comment) => ({
-      id: comment.id.toString(),
-      userId: comment.user_id,
+  id: comment.id.toString(),
+  userId: comment.user_id,
 
-      username:
-        comment.profiles?.username ||
-        comment.username ||
-        "Unknown user",
+  username:
+    comment.profiles?.username ||
+    comment.username ||
+    "Unknown user",
 
-      time: formatCommentTime(comment.created_at),
-      text: comment.text,
-    }));
+  profileImage:
+    comment.profiles?.profileIMG_url || null,
+
+  time: formatCommentTime(comment.created_at),
+  text: comment.text,
+}));
 
     setComments(formattedComments);
 setLoading(false);
@@ -114,7 +119,31 @@ useEffect(() => {
       data: { session },
     } = await supabase.auth.getSession();
 
-    setCurrentUserId(session?.user?.id || null);
+    if (!session) {
+      setCurrentUserId(null);
+      setCurrentUserImage(null);
+      return;
+    }
+
+    setCurrentUserId(session.user.id);
+
+    const { data: profile, error } = await supabase
+      .from("profiles")
+      .select("profileIMG_url")
+      .eq("id", session.user.id)
+      .single();
+
+    if (error) {
+      console.error(
+        "Error fetching current user profile image:",
+        error
+      );
+      return;
+    }
+
+    setCurrentUserImage(
+      profile?.profileIMG_url || null
+    );
   };
 
   fetchCurrentUser();
@@ -287,18 +316,26 @@ setComments((currentComments) =>
   delayLongPress={500}
 >
       <TouchableOpacity
-        style={styles.avatar}
-        activeOpacity={0.8}
-        onPress={() => handleOpenUser(item)}
-        accessibilityRole="button"
-        accessibilityLabel={`Open ${item.username}'s profile`}
-      >
-        <Ionicons
-          name="person"
-          size={22}
-          color={COLORS.blue}
-        />
-      </TouchableOpacity>
+  style={styles.avatar}
+  activeOpacity={0.8}
+  onPress={() => handleOpenUser(item)}
+  accessibilityRole="button"
+  accessibilityLabel={`Open ${item.username}'s profile`}
+>
+  {item.profileImage ? (
+    <Image
+      source={{ uri: item.profileImage }}
+      style={styles.avatarImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={22}
+      color={COLORS.blue}
+    />
+  )}
+</TouchableOpacity>
 
       <View style={styles.commentContent}>
         <View style={styles.commentHeader}>
@@ -407,12 +444,20 @@ setComments((currentComments) =>
 
         <View style={styles.inputArea}>
           <View style={styles.currentUserAvatar}>
-            <Ionicons
-              name="person"
-              size={21}
-              color={COLORS.blue}
-            />
-          </View>
+  {currentUserImage ? (
+    <Image
+      source={{ uri: currentUserImage }}
+      style={styles.avatarImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={21}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
           <View style={styles.inputContainer}>
             <TextInput
@@ -688,4 +733,9 @@ const styles = StyleSheet.create({
   sendButtonDisabled: {
     opacity: 0.5,
   },
+  avatarImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 19,
+},
 });

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -11,11 +11,12 @@ export default function UserProfileScreen({ navigation, route }) {
   const userId = route.params?.user?.id;
 
   const [user, setUser] = useState({
-    id: userId,
-    username: route.params?.user?.username || "",
-    isVerified: false,
-    bio: "",
-  });
+  id: userId,
+  username: route.params?.user?.username || "",
+  isVerified: false,
+  bio: "",
+  profileIMG_url: null,
+});
 
   const [userMeetups, setUserMeetups] = useState([]);
 
@@ -32,7 +33,7 @@ useEffect(() => {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, username, bio, is_verified")
+      .select("id, username, bio, is_verified, profileIMG_url")
       .eq("id", userId)
       .single();
 
@@ -99,11 +100,12 @@ useEffect(() => {
     });
 
     setUser({
-      id: profileData.id,
-      username: profileData.username,
-      isVerified: profileData.is_verified || false,
-      bio: profileData.bio || "",
-    });
+  id: profileData.id,
+  username: profileData.username,
+  isVerified: profileData.is_verified || false,
+  bio: profileData.bio || "",
+  profileIMG_url: profileData.profileIMG_url || null,
+});
 
     setUserMeetups(formattedMeetups);
   };
@@ -223,8 +225,20 @@ useEffect(() => {
         >
           <View style={styles.profileSection}>
             <View style={styles.avatar}>
-              <Ionicons name="person" size={62} color={COLORS.blue} />
-            </View>
+  {user.profileIMG_url ? (
+    <Image
+      source={{ uri: user.profileIMG_url }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={62}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
             <View style={styles.usernameRow}>
               <Text style={styles.username}>@{user.username}</Text>
@@ -549,4 +563,9 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
+  profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 60,
+},
 });

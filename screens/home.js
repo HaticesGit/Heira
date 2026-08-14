@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -12,6 +12,7 @@ export default function HomeScreen({ navigation }) {
   const alarmSoundRef = useRef(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
   const [meetups, setMeetups] = useState([]);
+  const [currentUserImage, setCurrentUserImage] = useState(null);
   const formatDate = (date) => {
   if (!date) return "";
 
@@ -30,6 +31,17 @@ const fetchFutureMeetups = async () => {
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  if (session?.user) {
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("profileIMG_url")
+    .eq("id", session.user.id)
+    .single();
+
+  setCurrentUserImage(
+    profileData?.profileIMG_url || null
+  );
+}
 
   if (!session) {
     setMeetups([]);
@@ -173,11 +185,19 @@ useFocusEffect(
             activeOpacity={0.8}
             onPress={() => navigation.navigate("Profile")}
           >
-            <Ionicons
-              name="person"
-              size={24}
-              color={COLORS.blue}
-            />
+            {currentUserImage ? (
+  <Image
+    source={{ uri: currentUserImage }}
+    style={styles.profileButtonImage}
+    resizeMode="cover"
+  />
+) : (
+  <Ionicons
+    name="person"
+    size={24}
+    color={COLORS.blue}
+  />
+)}
           </TouchableOpacity>
         </View>
 
@@ -488,4 +508,9 @@ const styles = StyleSheet.create({
     marginLeft: 7,
     textAlign: "center",
   },
+  profileButtonImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 22,
+},
 });
