@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, ScrollView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, FlatList, ScrollView, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -63,7 +63,7 @@ export default function SearchScreen({ navigation }) {
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("id, username, is_verified")
+      .select("id, username, is_verified, profileIMG_url")
       .ilike("username", `%${normalizedQuery}%`)
       .limit(10);
 
@@ -206,12 +206,20 @@ const toggleFollow = async (userId) => {
         accessibilityLabel={`Open ${item.username}'s profile`}
       >
         <View style={styles.avatar}>
-          <Ionicons
-            name="person"
-            size={23}
-            color={COLORS.blue}
-          />
-        </View>
+  {item.profileIMG_url ? (
+    <Image
+      source={{ uri: item.profileIMG_url }}
+      style={styles.profileImage}
+      resizeMode="cover"
+    />
+  ) : (
+    <Ionicons
+      name="person"
+      size={23}
+      color={COLORS.blue}
+    />
+  )}
+</View>
 
         <View style={styles.userInfo}>
           <Text style={styles.username}>
@@ -757,5 +765,10 @@ meetupIcon: {
 meetupDetails: {
   color: COLORS.span,
   fontSize: 13,
+},
+profileImage: {
+  width: "100%",
+  height: "100%",
+  borderRadius: 22,
 },
 });
