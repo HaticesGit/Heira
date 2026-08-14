@@ -7,7 +7,7 @@ import SafespaceCard from "../components/SafespaceCard";
 import { COLORS } from "../constants/colors";
 import { useFocusEffect } from "@react-navigation/native";
 import NavigationInstruction from "../components/NavigationInstruction";
-
+import * as Location from "expo-location";
 import StarredDestinationsSheet from "../components/StarredDestinationsSheet";
 export default function MapScreen({ navigation, route }) {
   const mapRef = useRef(null);
@@ -71,6 +71,8 @@ const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [showSafespaces, setShowSafespaces] = useState(true);
   const [showStarredDestinations, setShowStarredDestinations] = useState(false);
 const [starredDestinations, setStarredDestinations] = useState([]);
+const [currentLocationCoords, setCurrentLocationCoords] = useState(null);
+const [locationLoading, setLocationLoading] = useState(false);
 
 useFocusEffect(
   React.useCallback(() => {
@@ -126,6 +128,58 @@ useFocusEffect(
     }
   };
 
+  const getCurrentLocation = async () => {
+  try {
+    setLocationLoading(true);
+
+    const { status } =
+      await Location.requestForegroundPermissionsAsync();
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Location permission needed",
+        "Please allow location access to use your current location."
+      );
+      return null;
+    }
+
+    const location =
+      await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+    const coords = {
+      latitude: location.coords.latitude,
+      longitude: location.coords.longitude,
+    };
+
+    setCurrentLocationCoords(coords);
+    setOrigin("Current Location");
+
+    mapRef.current?.animateToRegion(
+      {
+        ...coords,
+        latitudeDelta: 0.015,
+        longitudeDelta: 0.015,
+      },
+      500
+    );
+
+    return coords;
+  } catch (error) {
+    console.error("Location error:", error);
+
+    Alert.alert(
+      "Location error",
+      "Your current location could not be found."
+    );
+
+    return null;
+  } finally {
+    setLocationLoading(false);
+  }
+};
+
   const getRoute = async () => {
     if (!origin.trim() || !destination.trim()) {
       Alert.alert(
@@ -138,8 +192,15 @@ useFocusEffect(
     setLoading(true);
 
     try {
-      const originCoords = await geocodeAddress(origin);
-      const destCoords = await geocodeAddress(destination);
+      let originCoords;
+
+if (origin === "Current Location" && currentLocationCoords) {
+  originCoords = currentLocationCoords;
+} else {
+  originCoords = await geocodeAddress(origin);
+}
+
+const destCoords = await geocodeAddress(destination);
 
       if (!originCoords || !destCoords) {
         Alert.alert(
@@ -516,11 +577,21 @@ const openSafespace = (safespace) => {
         </Text>
 
         <View style={styles.inputContainer}>
-          <Ionicons
-            name="navigate-circle"
-            size={24}
-            color={COLORS.lightBlue}
-          />
+          <TouchableOpacity
+  activeOpacity={0.7}
+  onPress={getCurrentLocation}
+  disabled={locationLoading}
+>
+  <Ionicons
+    name="navigate-circle"
+    size={24}
+    color={
+      currentLocationCoords
+        ? COLORS.green
+        : COLORS.blue
+    }
+  />
+</TouchableOpacity>
 
           <TextInput
             style={styles.input}
