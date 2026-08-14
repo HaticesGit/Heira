@@ -89,8 +89,7 @@ useFocusEffect(
   }, [route.params?.destination])
 );
 
-  const ORS_API_KEY =
-    "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjVkMGExODZjMWE4ODRhNDVhNGI1ZGZmMDVlNzI3Y2IzIiwiaCI6Im11cm11cjY0In0=";
+  const ORS_API_KEY = process.env.EXPO_PUBLIC_ORS_API_KEY;
 
   const geocodeAddress = async (address) => {
     try {
@@ -213,13 +212,13 @@ const destCoords = await geocodeAddress(destination);
       }
 
       const response = await fetch(
-        `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_API_KEY}&start=${originCoords.longitude},${originCoords.latitude}&end=${destCoords.longitude},${destCoords.latitude}`,
-        {
-          headers: {
-            Accept: "application/geo+json",
-          },
-        }
-      );
+  `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=${ORS_API_KEY}&start=${originCoords.longitude},${originCoords.latitude}&end=${destCoords.longitude},${destCoords.latitude}`,
+  {
+    headers: {
+      Accept: "application/geo+json",
+    },
+  }
+);
 
       const data = await response.json();
 
