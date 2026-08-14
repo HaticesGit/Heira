@@ -9,7 +9,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import NavigationInstruction from "../components/NavigationInstruction";
 
 import StarredDestinationsSheet from "../components/StarredDestinationsSheet";
-export default function MapScreen({ navigation }) {
+export default function MapScreen({ navigation, route }) {
   const mapRef = useRef(null);
   const [safespaces, setSafespaces] = useState([]);
   useFocusEffect(
@@ -71,6 +71,21 @@ const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [showSafespaces, setShowSafespaces] = useState(true);
   const [showStarredDestinations, setShowStarredDestinations] = useState(false);
 const [starredDestinations, setStarredDestinations] = useState([]);
+
+useFocusEffect(
+  React.useCallback(() => {
+    const incomingDestination = route.params?.destination;
+
+    if (incomingDestination) {
+      setDestination(incomingDestination);
+      setShowSafespaces(false);
+
+      navigation.setParams({
+        destination: undefined,
+      });
+    }
+  }, [route.params?.destination])
+);
 
   const ORS_API_KEY =
     "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjVkMGExODZjMWE4ODRhNDVhNGI1ZGZmMDVlNzI3Y2IzIiwiaCI6Im11cm11cjY0In0=";
