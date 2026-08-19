@@ -2,13 +2,15 @@ import React, { useState } from "react";
 import { View, Text, TouchableOpacity,TextInput, StyleSheet, KeyboardAvoidingView, Platform, ScrollView, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-
+import useUserPlan from "../hooks/useUserPlan";
 import { COLORS } from "../constants/colors";
 import { supabase } from "../lib/supabase";
 
 export default function AddContactScreen({ navigation }) {
   const [name, setName] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
+  const { isPremium } = useUserPlan();
+  const FREE_CONTACT_LIMIT = 3;
 
   const handleAddContact = async () => {
   const trimmedName = name.trim();
@@ -30,6 +32,33 @@ export default function AddContactScreen({ navigation }) {
     navigation.navigate("Login");
     return;
   }
+
+  if (!isPremium) {
+  const { count, error: countError } = await supabase
+    .from("emergency_contacts")
+    .select("*", { count: "exact", head: true })
+    .eq("user_id", session.user.id);
+
+  if (countError) {
+    console.error("Error checking emergency contact limit:", countError);
+
+    Alert.alert(
+      "Could not add contact",
+      "Please try again."
+    );
+
+    return;
+  }
+
+  if ((count || 0) >= FREE_CONTACT_LIMIT) {
+    Alert.alert(
+      "Free plan limit reached",
+      `Free users can add up to ${FREE_CONTACT_LIMIT} emergency contacts. Upgrade to Premium to add more.`
+    );
+
+    return;
+  }
+}
 
   const { error } = await supabase
     .from("emergency_contacts")

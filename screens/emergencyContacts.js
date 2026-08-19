@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Switch, } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Switch, Alert } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -7,10 +7,13 @@ import { COLORS } from "../constants/colors";
 import ContactCard from "../components/ContactCard";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
+import useUserPlan from "../hooks/useUserPlan";
 
 export default function EmergencyContactsScreen({ navigation }) {
   const [emergencyEnabled, setEmergencyEnabled] = useState(false);
   const [contacts, setContacts] = useState([]);
+  const { isPremium } = useUserPlan();
+  const FREE_CONTACT_LIMIT = 3;
 
   const fetchContacts = useCallback(async () => {
   const {
@@ -41,6 +44,19 @@ useFocusEffect(
     fetchContacts();
   }, [fetchContacts])
 );
+
+const handleAddContact = () => {
+  if (!isPremium && contacts.length >= FREE_CONTACT_LIMIT) {
+    Alert.alert(
+      "Free plan limit reached",
+      `Free users can add up to ${FREE_CONTACT_LIMIT} emergency contacts. Upgrade to Premium to add more.`
+    );
+
+    return;
+  }
+
+  navigation.navigate("AddContact");
+};
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -73,7 +89,9 @@ useFocusEffect(
           </Text>
 
           <Text style={styles.limitText}>
-            This is limited to 5 people with your current plan
+            {isPremium
+              ? "You can add unlimited emergency contacts with Premium."
+              : `${contacts.length}/${FREE_CONTACT_LIMIT} emergency contacts used on your Free plan.`}
           </Text>
 
           {contacts.map((contact) => (
@@ -91,7 +109,7 @@ useFocusEffect(
 
           <TouchableOpacity
             style={styles.addButton}
-            onPress={() => navigation.navigate("AddContact")}
+            onPress={handleAddContact}
           >
             <Ionicons
               name="person-add-outline"
