@@ -14,6 +14,7 @@ export default function AddReviewScreen({ navigation, route }) {
 
   const [rating, setRating] = useState(0);
   const [reviewText, setReviewText] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmitReview = async () => {
   const trimmedReview = reviewText.trim();
@@ -39,12 +40,14 @@ export default function AddReviewScreen({ navigation, route }) {
   } = await supabase.auth.getSession();
 
   if (!session) {
-    navigation.navigate("Login");
-    return;
-  }
+  navigation.navigate("Login");
+  return;
+}
 
-  const { error } = await supabase
-    .from("safespace_reviews")
+setSubmitting(true);
+
+const { error } = await supabase
+  .from("safespace_reviews")
     .insert([
       {
         safespace_id: safespace.id,
@@ -54,24 +57,28 @@ export default function AddReviewScreen({ navigation, route }) {
       },
     ]);
 
-  if (error) {
-    console.error("Error submitting review:", error);
+ if (error) {
+  setSubmitting(false);
 
-    if (error.code === "23505") {
-      Alert.alert(
-        "Review already submitted",
-        "You have already reviewed this Safespace."
-      );
-      return;
-    }
+  console.error("Error submitting review:", error);
 
+  if (error.code === "23505") {
     Alert.alert(
-      "Could not submit review",
-      "Please try again."
+      "Review already submitted",
+      "You have already reviewed this Safespace."
     );
-
     return;
   }
+
+  Alert.alert(
+    "Could not submit review",
+    "Please try again."
+  );
+
+  return;
+}
+
+setSubmitting(false);
 
   Alert.alert(
     "Review submitted",
@@ -209,14 +216,18 @@ export default function AddReviewScreen({ navigation, route }) {
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.submitButton}
-            activeOpacity={0.8}
-            onPress={handleSubmitReview}
-          >
-            <Text style={styles.submitButtonText}>
-              Submit review
-            </Text>
-          </TouchableOpacity>
+          style={[
+            styles.submitButton,
+            submitting && { opacity: 0.6 },
+          ]}
+          activeOpacity={0.8}
+          onPress={handleSubmitReview}
+          disabled={submitting}
+        >
+          <Text style={styles.submitButtonText}>
+            {submitting ? "Submitting..." : "Submit review"}
+          </Text>
+        </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
