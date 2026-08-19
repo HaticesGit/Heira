@@ -48,7 +48,7 @@ export default function FollowListScreen({ navigation, route }) {
         const { data: followerProfiles, error } =
           await supabase
             .from("profiles")
-            .select("id, username, is_verified, profileIMG_url")
+            .select("id, username, is_verified, profileIMG_url, plan")
             .in("id", followerIds);
 
         if (error) {
@@ -85,7 +85,7 @@ export default function FollowListScreen({ navigation, route }) {
         const { data: followingProfiles, error } =
           await supabase
             .from("profiles")
-            .select("id, username, is_verified, profileIMG_url")
+            .select("id, username, is_verified, profileIMG_url, plan")
             .in("id", followingIds);
 
         if (error) {
@@ -126,7 +126,12 @@ export default function FollowListScreen({ navigation, route }) {
           })
         }
       >
-        <View style={styles.avatar}>
+        <View
+          style={[
+            styles.avatar,
+            item.plan === "premium" && styles.premiumAvatar,
+          ]}
+        >
   {item.profileIMG_url ? (
     <Image
       source={{ uri: item.profileIMG_url }}
@@ -406,5 +411,9 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 23,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });

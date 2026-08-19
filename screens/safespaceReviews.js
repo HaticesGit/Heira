@@ -37,7 +37,8 @@ useFocusEffect(
           user_id,
           profiles (
             username,
-            profileIMG_url
+            profileIMG_url,
+            plan
           )
         `)
         .eq("safespace_id", safespace.id)
@@ -56,6 +57,7 @@ useFocusEffect(
         rating: review.rating,
         text: review.comment,
         profileImage: review.profiles?.profileIMG_url || null,
+        plan: review.profiles?.plan || "free",
       }));
 
       setReviews(formattedReviews);

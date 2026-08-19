@@ -15,6 +15,7 @@ export default function CommentsScreen({ navigation, route }) {
   const [currentUserImage, setCurrentUserImage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  const [currentUserPlan, setCurrentUserPlan] = useState("free"); 
 
   const isSendDisabled = useMemo(
     () => newComment.trim().length === 0 || sending,
@@ -72,7 +73,8 @@ export default function CommentsScreen({ navigation, route }) {
         username,
         profiles (
           username,
-          profileIMG_url
+          profileIMG_url,
+          plan
         )
       `)
       .eq("meetup_id", meetup.id)
@@ -101,10 +103,10 @@ export default function CommentsScreen({ navigation, route }) {
 
   profileImage:
     comment.profiles?.profileIMG_url || null,
-
-  time: formatCommentTime(comment.created_at),
-  text: comment.text,
-}));
+    plan: comment.profiles?.plan || "free",
+    time: formatCommentTime(comment.created_at),
+    text: comment.text,
+  }));
 
     setComments(formattedComments);
 setLoading(false);
@@ -129,7 +131,7 @@ useEffect(() => {
 
     const { data: profile, error } = await supabase
       .from("profiles")
-      .select("profileIMG_url")
+      .select("profileIMG_url, plan")
       .eq("id", session.user.id)
       .single();
 
@@ -141,9 +143,8 @@ useEffect(() => {
       return;
     }
 
-    setCurrentUserImage(
-      profile?.profileIMG_url || null
-    );
+    setCurrentUserImage( profile?.profileIMG_url || null);
+    setCurrentUserPlan(profile?.plan || "free");
   };
 
   fetchCurrentUser();
@@ -296,7 +297,7 @@ const handleDeleteComment = (comment) => {
   delayLongPress={500}
 >
       <TouchableOpacity
-  style={styles.avatar}
+  style={[ styles.avatar, item.plan === "premium" && styles.premiumAvatar, ]}
   activeOpacity={0.8}
   onPress={() => handleOpenUser(item)}
   accessibilityRole="button"
@@ -423,7 +424,7 @@ const handleDeleteComment = (comment) => {
         )}
 
         <View style={styles.inputArea}>
-          <View style={styles.currentUserAvatar}>
+          <View style={[ styles.currentUserAvatar, currentUserPlan === "premium" && styles.premiumAvatar, ]}>
   {currentUserImage ? (
     <Image
       source={{ uri: currentUserImage }}
@@ -717,5 +718,9 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 19,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });

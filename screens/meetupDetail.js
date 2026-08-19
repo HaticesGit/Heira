@@ -70,7 +70,7 @@
     const { data: profileData, error: profileError } =
       await supabase
         .from("profiles")
-        .select("id, username, bio, is_verified, profileIMG_url")
+       .select("id, username, bio, is_verified, profileIMG_url, plan")
         .eq("id", meetupData.creator_id)
         .single();
 
@@ -344,8 +344,12 @@
 
             <View style={styles.content}>
               <TouchableOpacity
-                style={styles.avatar}
-                activeOpacity={0.8}
+  style={[
+    styles.avatar,
+    meetup.creatorProfile?.plan === "premium" &&
+      styles.premiumAvatar,
+  ]}
+  activeOpacity={0.8} 
                 onPress={() =>
                   navigation.navigate("UserProfile", {
                     user: meetup.creatorProfile,
@@ -808,5 +812,8 @@ participantAvatarImage: {
 },
 hostingButton: {
   opacity: 0.75,
+},
+premiumAvatar: {
+  borderColor: "#D4AF37",
 },
   });

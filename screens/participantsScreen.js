@@ -56,7 +56,7 @@ export default function ParticipantsScreen({ navigation, route }) {
       const { data: profileData, error: profileError } =
         await supabase
           .from("profiles")
-          .select("id, username, is_verified, profileIMG_url")
+          .select("id, username, is_verified, profileIMG_url, plan")
           .in("id", userIds);
 
       if (profileError) {
@@ -95,7 +95,7 @@ export default function ParticipantsScreen({ navigation, route }) {
           })
         }
       >
-       <View style={styles.avatar}>
+       <View style={[styles.avatar, item.plan === "premium" && styles.premiumAvatar, ]}>
   {item.profileIMG_url ? (
     <Image
       source={{ uri: item.profileIMG_url }}
@@ -324,5 +324,9 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 23,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });

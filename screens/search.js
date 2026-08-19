@@ -72,7 +72,7 @@ const [filters, setFilters] = useState({
 
     const { data: users, error: usersError } = await supabase
       .from("profiles")
-      .select("id, username, is_verified, profileIMG_url")
+      .select("id, username, is_verified, profileIMG_url, plan")
       .ilike("username", `%${normalizedQuery}%`)
       .limit(10);
 
@@ -311,7 +311,12 @@ const toggleFollow = async (userId) => {
         accessibilityRole="button"
         accessibilityLabel={`Open ${item.username}'s profile`}
       >
-        <View style={styles.avatar}>
+   <View
+  style={[
+    styles.avatar,
+    item.plan === "premium" && styles.premiumAvatar,
+  ]}
+>
   {item.profileIMG_url ? (
     <Image
       source={{ uri: item.profileIMG_url }}
@@ -883,5 +888,9 @@ profileImage: {
   width: "100%",
   height: "100%",
   borderRadius: 22,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });

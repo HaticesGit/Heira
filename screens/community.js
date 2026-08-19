@@ -16,6 +16,7 @@ export default function CommunityScreen({ navigation }) {
   const [isFilterVisible, setIsFilterVisible] = useState(false);
   const [activeFilters, setActiveFilters] = useState(null);
   const [currentUserImage, setCurrentUserImage] = useState(null);
+  const [currentUserPlan, setCurrentUserPlan] = useState("free");
 
 const filteredMeetups = meetups.filter((meetup) => {
   if (!activeFilters) {
@@ -130,7 +131,7 @@ if (verifiedHostsOnly && !meetup.isVerified) {
   const { data: currentProfile, error: currentProfileError } =
     await supabase
       .from("profiles")
-      .select("profileIMG_url")
+      .select("id, profileIMG_url, is_verified, plan")
       .eq("id", session.user.id)
       .single();
 
@@ -143,9 +144,11 @@ if (verifiedHostsOnly && !meetup.isVerified) {
     setCurrentUserImage(
       currentProfile?.profileIMG_url || null
     );
+    setCurrentUserPlan(currentProfile?.plan || "free");
   }
 } else {
   setCurrentUserImage(null);
+  setCurrentUserPlan("free");
 }
     const { data: meetupData, error: meetupError } = await supabase
       .from("meetups")
@@ -166,9 +169,10 @@ if (verifiedHostsOnly && !meetup.isVerified) {
       return;
     }
 
-    const { data: participantData, error: participantError } = await supabase
-      .from("meetup_participants")
-      .select("meetup_id, user_id");
+    const { data: participantData, error: participantError } =
+  await supabase
+    .from("meetup_participants")
+    .select("meetup_id, user_id");
 
     if (participantError) {
       console.error("Error fetching participants:", participantError);
@@ -210,7 +214,7 @@ if (creatorIds.length > 0) {
   const { data: profileData, error: profileError } =
     await supabase
       .from("profiles")
-      .select("id, profileIMG_url, is_verified")
+      .select("id, profileIMG_url, is_verified, plan")
       .in("id", creatorIds);
 
   if (profileError) {
@@ -225,6 +229,7 @@ if (creatorIds.length > 0) {
 
 const profileImagesByUserId = {};
 const verifiedByUserId = {};
+const planByUserId = {};
 
 creatorProfiles.forEach((profile) => {
   profileImagesByUserId[profile.id] =
@@ -232,6 +237,7 @@ creatorProfiles.forEach((profile) => {
 
   verifiedByUserId[profile.id] =
     profile.is_verified || false;
+    planByUserId[profile.id] = profile.plan || "free";
 });
     const formattedMeetups = meetupData.map((meetup) => ({
   id: meetup.id.toString(),
@@ -241,6 +247,7 @@ creatorProfiles.forEach((profile) => {
     profileImagesByUserId[meetup.creator_id] || null,
     isVerified:
   verifiedByUserId[meetup.creator_id] || false,
+  plan: planByUserId[meetup.creator_id] || "free",
   participantCount:
     participantCounts[meetup.id] || 0,
   location: meetup.location,
@@ -287,7 +294,7 @@ creatorProfiles.forEach((profile) => {
 
   const { data: existingParticipant, error: checkError } = await supabase
     .from("meetup_participants")
-    .select("id")
+.select("id")
     .eq("meetup_id", meetup.id)
     .eq("user_id", user.id)
     .maybeSingle();
@@ -359,10 +366,13 @@ creatorProfiles.forEach((profile) => {
           </Text>
 
           <TouchableOpacity
-  style={styles.profileButton}
-  activeOpacity={0.8}
-  onPress={() => navigation.navigate("Profile")}
->
+            style={[
+            styles.profileButton,
+            currentUserPlan === "premium" && styles.premiumProfileButton,
+          ]}
+            activeOpacity={0.8}
+            onPress={() => navigation.navigate("Profile")}
+          >
   {currentUserImage ? (
     <Image
       source={{ uri: currentUserImage }}
@@ -523,7 +533,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-
+  premiumProfileButton: {
+  borderColor: "#D4AF37",
+},
   searchSection: {
     paddingHorizontal: 18,
     paddingTop: 18,

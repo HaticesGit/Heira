@@ -185,21 +185,21 @@ export default function ProfileScreen({ navigation }) {
           </View>
 
           <View style={styles.profileContent}>
-            <View style={styles.avatarWrapper}>
-  {profile?.profileIMG_url ? (
-    <Image
-      source={{ uri: profile.profileIMG_url }}
-      style={styles.profileImage}
-      resizeMode="cover"
-    />
-  ) : (
-    <Ionicons
-      name="person"
-      size={62}
-      color={COLORS.blue}
-    />
-  )}
-</View>
+           <View style={[styles.avatarWrapper, isPremium && styles.premiumAvatar]}>
+          {profile?.profileIMG_url ? (
+            <Image
+              source={{ uri: profile.profileIMG_url }}
+              style={styles.profileImage}
+              resizeMode="cover"
+            />
+            ) : (
+              <Ionicons
+                name="person"
+                size={62}
+                color={COLORS.blue}
+              />
+            )}
+          </View>
 
             <View style={styles.usernameRow}>
               <Text style={styles.username}>
@@ -790,5 +790,8 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 60,
+},
+premiumAvatar: {
+  borderColor: "#D4AF37",
 },
 });

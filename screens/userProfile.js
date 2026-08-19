@@ -33,7 +33,7 @@ useEffect(() => {
 
     const { data: profileData, error: profileError } = await supabase
       .from("profiles")
-      .select("id, username, bio, is_verified, profileIMG_url")
+      .select("id, username, bio, is_verified, profileIMG_url, plan")
       .eq("id", userId)
       .single();
 
@@ -100,12 +100,13 @@ useEffect(() => {
     });
 
     setUser({
-  id: profileData.id,
-  username: profileData.username,
-  isVerified: profileData.is_verified || false,
-  bio: profileData.bio || "",
-  profileIMG_url: profileData.profileIMG_url || null,
-});
+      id: profileData.id,
+      username: profileData.username,
+      isVerified: profileData.is_verified || false,
+      bio: profileData.bio || "",
+      profileIMG_url: profileData.profileIMG_url || null,
+      plan: profileData.plan || "free",
+    });
 
     setUserMeetups(formattedMeetups);
   };
@@ -224,13 +225,13 @@ useEffect(() => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.profileSection}>
-            <View style={styles.avatar}>
-  {user.profileIMG_url ? (
-    <Image
-      source={{ uri: user.profileIMG_url }}
-      style={styles.profileImage}
-      resizeMode="cover"
-    />
+            <View style={[styles.avatar, user.plan === "premium" && styles.premiumAvatar]}>
+            {user.profileIMG_url ? (
+              <Image
+                source={{ uri: user.profileIMG_url }}
+                style={styles.profileImage}
+                resizeMode="cover"
+              />
   ) : (
     <Ionicons
       name="person"
@@ -567,5 +568,8 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 60,
+},
+premiumAvatar: {
+  borderColor: "#D4AF37",
 },
 });

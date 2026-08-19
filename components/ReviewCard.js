@@ -8,7 +8,7 @@ export default function ReviewCard({ review, onUserPress }) {
   return (
     <View style={styles.card}>
       <TouchableOpacity
-        style={styles.avatar}
+        style={[ styles.avatar, review.plan === "premium" && styles.premiumAvatar, ]}
         activeOpacity={0.8}
         onPress={onUserPress}
         accessibilityRole="button"
@@ -130,5 +130,9 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 20,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });

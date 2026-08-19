@@ -18,7 +18,12 @@ export default function CommunityMeetupCard({
       onPress={onPress}
     >
       <View style={styles.userRow}>
-        <View style={styles.avatar}>
+        <View
+  style={[
+    styles.avatar,
+    meetup.plan === "premium" && styles.premiumAvatar,
+  ]}
+>
   {meetup.profileIMG_url ? (
     <Image
       source={{ uri: meetup.profileIMG_url }}
@@ -294,5 +299,9 @@ const styles = StyleSheet.create({
   width: "100%",
   height: "100%",
   borderRadius: 21,
+},
+premiumAvatar: {
+  borderWidth: 2,
+  borderColor: "#D4AF37",
 },
 });
