@@ -6,12 +6,14 @@ import { useFocusEffect } from "@react-navigation/native";
 
 import { supabase } from "../lib/supabase";
 import { COLORS } from "../constants/colors";
+import useUserPlan from "../hooks/useUserPlan";
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
+  const { plan, isPremium, loadingPlan } = useUserPlan();
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -316,11 +318,13 @@ export default function ProfileScreen({ navigation }) {
                 </Text>
               </View>
 
+              {!isPremium && (
               <View style={styles.currentPlanBadge}>
                 <Text style={styles.currentPlanText}>
                   Current plan
                 </Text>
               </View>
+            )}
             </View>
 
             <Text style={styles.freePlanDescription}>
@@ -344,7 +348,7 @@ export default function ProfileScreen({ navigation }) {
 
               <View style={styles.popularBadge}>
                 <Text style={styles.popularBadgeText}>
-                  Most popular
+                  {isPremium ? "Current plan" : "Most popular"}
                 </Text>
               </View>
             </View>
@@ -396,23 +400,25 @@ export default function ProfileScreen({ navigation }) {
             </View>
           </View>
 
-          <TouchableOpacity
-            style={styles.upgradeButton}
-            activeOpacity={0.8}
-            onPress={() =>
-              console.log("Upgrade pressed")
-            }
-          >
-            <Ionicons
-              name="diamond"
-              size={21}
-              color={COLORS.offWhite}
-            />
+          {!isPremium && (
+            <TouchableOpacity
+              style={styles.upgradeButton}
+              activeOpacity={0.8}
+              onPress={() =>
+                console.log("Upgrade pressed")
+              }
+            >
+              <Ionicons
+                name="diamond"
+                size={21}
+                color={COLORS.offWhite}
+              />
 
-            <Text style={styles.upgradeButtonText}>
-              Upgrade to premium
-            </Text>
-          </TouchableOpacity>
+              <Text style={styles.upgradeButtonText}>
+                Upgrade to premium
+              </Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       </View>
     </SafeAreaView>
