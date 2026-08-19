@@ -64,19 +64,20 @@
     meetupData.username || "Unknown user";
 
   let creatorProfileImage = null;
+  let creatorProfile = null;
 
   if (meetupData.creator_id) {
     const { data: profileData, error: profileError } =
       await supabase
         .from("profiles")
-        .select("username, profileIMG_url")
+        .select("id, username, bio, is_verified, profileIMG_url")
         .eq("id", meetupData.creator_id)
         .single();
 
     if (!profileError && profileData) {
+      creatorProfile = profileData;
       creatorUsername = profileData.username;
-      creatorProfileImage =
-        profileData.profileIMG_url || null;
+      creatorProfileImage = profileData.profileIMG_url || null;
     }
   }
 
@@ -177,6 +178,7 @@
         setMeetup({
           id: meetupData.id.toString(),
           creatorId: meetupData.creator_id,
+          creatorProfile: creatorProfile,
           username: creatorUsername,
           title: meetupData.location,
           location: meetupData.location,
@@ -346,10 +348,7 @@
                 activeOpacity={0.8}
                 onPress={() =>
                   navigation.navigate("UserProfile", {
-                    user: {
-                      id: meetup.creatorId,
-                      username: meetup.username,
-                    },
+                    user: meetup.creatorProfile,
                   })
                 }
               >
@@ -381,10 +380,7 @@
                   activeOpacity={0.7}
                   onPress={() =>
                     navigation.navigate("UserProfile", {
-                      user: {
-                        id: meetup.creatorId,
-                        username: meetup.username,
-                      },
+                      user: meetup.creatorProfile,
                     })
                   }
                 >
