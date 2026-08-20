@@ -7,12 +7,18 @@ import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../lib/supabase";
 import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
+import * as Location from "expo-location";
+import * as SMS from "expo-sms";
 
 export default function HomeScreen({ navigation }) {
   const alarmSoundRef = useRef(null);
   const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
   const [meetups, setMeetups] = useState([]);
   const [currentUserImage, setCurrentUserImage] = useState(null);
+  const locationWatcherRef = useRef(null);
+
+const [isSharingLocation, setIsSharingLocation] = useState(false);
+const [locationShareId, setLocationShareId] = useState(null);
   const formatDate = (date) => {
   if (!date) return "";
 
@@ -107,6 +113,119 @@ useFocusEffect(
       }
     };
   }, []);
+
+  const startLocationSharing = async () => {
+  try {
+    const { status } =
+      await Location.requestForegroundPermissionsAsync();
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Location permission needed",
+        "Heira needs access to your location to share it."
+      );
+      return;
+    }
+
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+
+    if (!session?.user) {
+      Alert.alert(
+        "Not logged in",
+        "You need to be logged in to share your location."
+      );
+      return;
+    }
+
+    const currentLocation =
+      await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+    const { latitude, longitude } =
+      currentLocation.coords;
+
+    const shareToken =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(2, 10)}`;
+
+    const { data, error } = await supabase
+      .from("location_shares")
+      .insert({
+        user_id: session.user.id,
+        share_token: shareToken,
+        latitude,
+        longitude,
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setLocationShareId(data.id);
+    setIsSharingLocation(true);
+
+    console.log("Location share created:", data);
+
+    locationWatcherRef.current =
+      await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        },
+        async (location) => {
+          const {
+            latitude,
+            longitude,
+          } = location.coords;
+
+          console.log(
+            "Updated location:",
+            latitude,
+            longitude
+          );
+
+          const { error: updateError } =
+            await supabase
+              .from("location_shares")
+              .update({
+                latitude,
+                longitude,
+                updated_at:
+                  new Date().toISOString(),
+              })
+              .eq("id", data.id);
+
+          if (updateError) {
+            console.log(
+              "Location update error:",
+              updateError
+            );
+          }
+        }
+      );
+  } catch (error) {
+    console.log(
+      "Start location sharing error:",
+      error
+    );
+
+    setIsSharingLocation(false);
+
+    Alert.alert(
+      "Something went wrong",
+      "Your location could not be shared."
+    );
+  }
+};
 
   const toggleAlarm = async () => {
     try {
@@ -260,7 +379,7 @@ useFocusEffect(
                 styles.shareLocationCard,
               ]}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("MapTab")}
+              onPress={startLocationSharing}
             >
               <Ionicons
                 name="location"
