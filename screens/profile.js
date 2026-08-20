@@ -1,19 +1,28 @@
 import React, { useCallback, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, ActivityIndicator, Alert, Image } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  ActivityIndicator,
+  Alert,
+  Image,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 
 import { supabase } from "../lib/supabase";
 import { COLORS } from "../constants/colors";
-import useUserPlan from "../hooks/useUserPlan";
 
 export default function ProfileScreen({ navigation }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [followerCount, setFollowerCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
-  const { plan, isPremium, loadingPlan } = useUserPlan();
+
+  const isPremium = profile?.plan === "premium";
 
   const fetchProfile = useCallback(async () => {
     setLoading(true);
@@ -30,7 +39,9 @@ export default function ProfileScreen({ navigation }) {
 
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, username, bio, is_verified, profileIMG_url")
+      .select(
+        "id, username, bio, is_verified, profileIMG_url, plan"
+      )
       .eq("id", session.user.id)
       .single();
 
@@ -46,22 +57,40 @@ export default function ProfileScreen({ navigation }) {
       return;
     }
 
-    const { count: followers, error: followersError } = await supabase
+    const {
+      count: followers,
+      error: followersError,
+    } = await supabase
       .from("follows")
-      .select("*", { count: "exact", head: true })
+      .select("*", {
+        count: "exact",
+        head: true,
+      })
       .eq("following_id", session.user.id);
 
     if (followersError) {
-      console.error("Error fetching followers:", followersError);
+      console.error(
+        "Error fetching followers:",
+        followersError
+      );
     }
 
-    const { count: following, error: followingError } = await supabase
+    const {
+      count: following,
+      error: followingError,
+    } = await supabase
       .from("follows")
-      .select("*", { count: "exact", head: true })
+      .select("*", {
+        count: "exact",
+        head: true,
+      })
       .eq("follower_id", session.user.id);
 
     if (followingError) {
-      console.error("Error fetching following:", followingError);
+      console.error(
+        "Error fetching following:",
+        followingError
+      );
     }
 
     setProfile(data);
@@ -77,10 +106,14 @@ export default function ProfileScreen({ navigation }) {
   );
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    const { error } =
+      await supabase.auth.signOut();
 
     if (error) {
-      console.error("Error signing out:", error);
+      console.error(
+        "Error signing out:",
+        error
+      );
 
       Alert.alert(
         "Could not log out",
@@ -93,16 +126,98 @@ export default function ProfileScreen({ navigation }) {
     navigation.navigate("Login");
   };
 
+  const handleChangePlan = () => {
+  const targetPlan = isPremium ? "free" : "premium";
+
+  Alert.alert(
+    isPremium ? "Switch to Free?" : "Upgrade to Premium",
+    isPremium
+      ? "Your account will be changed back to the Free plan."
+      : "Premium costs €4.99/month.\n\nFor this MVP, the payment is simulated and no real payment will be made.",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: isPremium ? "Switch to Free" : "Upgrade",
+        style: isPremium ? "destructive" : "default",
+
+        onPress: async () => {
+          try {
+            const {
+              data: { session },
+            } = await supabase.auth.getSession();
+
+            if (!session?.user) {
+              Alert.alert(
+                "Not logged in",
+                "You need to be logged in to change your plan."
+              );
+              return;
+            }
+
+            const { data, error } = await supabase
+              .from("profiles")
+              .update({
+                plan: targetPlan,
+              })
+              .eq("id", session.user.id)
+              .select("plan")
+              .single();
+
+            if (error) {
+              throw error;
+            }
+
+            console.log("UPDATED PLAN:", data);
+
+            setProfile((currentProfile) => ({
+              ...currentProfile,
+              plan: targetPlan,
+            }));
+
+            Alert.alert(
+              targetPlan === "premium"
+                ? "Welcome to Premium"
+                : "Free plan activated",
+              targetPlan === "premium"
+                ? "Your account has been upgraded to Premium."
+                : "Your account is now using the Free plan."
+            );
+          } catch (error) {
+            console.log("Plan change error:", error);
+
+            Alert.alert(
+              "Plan change failed",
+              error?.message ||
+                "Your plan could not be changed."
+            );
+          }
+        },
+      },
+    ]
+  );
+};
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loadingContainer}>
+      <SafeAreaView
+        style={styles.safeArea}
+      >
+        <View
+          style={
+            styles.loadingContainer
+          }
+        >
           <ActivityIndicator
             size="large"
             color={COLORS.blue}
           />
 
-          <Text style={styles.loadingText}>
+          <Text
+            style={styles.loadingText}
+          >
             Loading profile...
           </Text>
         </View>
@@ -112,28 +227,43 @@ export default function ProfileScreen({ navigation }) {
 
   if (!profile) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <View style={styles.guestContainer}>
+      <SafeAreaView
+        style={styles.safeArea}
+      >
+        <View
+          style={styles.guestContainer}
+        >
           <Ionicons
             name="person-outline"
             size={55}
             color={COLORS.blue}
           />
 
-          <Text style={styles.guestTitle}>
+          <Text
+            style={styles.guestTitle}
+          >
             You're using Heira as a guest
           </Text>
 
-          <Text style={styles.guestText}>
-            Sign in to view your profile and account settings.
+          <Text
+            style={styles.guestText}
+          >
+            Sign in to view your profile
+            and account settings.
           </Text>
 
           <TouchableOpacity
             style={styles.signInButton}
             activeOpacity={0.8}
-            onPress={() => navigation.navigate("Login")}
+            onPress={() =>
+              navigation.navigate("Login")
+            }
           >
-            <Text style={styles.signInButtonText}>
+            <Text
+              style={
+                styles.signInButtonText
+              }
+            >
               Sign in
             </Text>
           </TouchableOpacity>
@@ -149,14 +279,20 @@ export default function ProfileScreen({ navigation }) {
     >
       <View style={styles.screen}>
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          contentContainerStyle={
+            styles.scrollContent
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
         >
           <View style={styles.header}>
             <TouchableOpacity
               style={styles.headerButton}
               activeOpacity={0.8}
-              onPress={() => navigation.goBack()}
+              onPress={() =>
+                navigation.goBack()
+              }
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
@@ -167,12 +303,20 @@ export default function ProfileScreen({ navigation }) {
               />
             </TouchableOpacity>
 
-            <Text style={styles.headerTitle}>Profile</Text>
+            <Text
+              style={styles.headerTitle}
+            >
+              Profile
+            </Text>
 
             <TouchableOpacity
               style={styles.headerButton}
               activeOpacity={0.8}
-              onPress={() => navigation.navigate("Settings")}
+              onPress={() =>
+                navigation.navigate(
+                  "Settings"
+                )
+              }
               accessibilityRole="button"
               accessibilityLabel="Open settings"
             >
@@ -184,25 +328,41 @@ export default function ProfileScreen({ navigation }) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.profileContent}>
-           <View style={[styles.avatarWrapper, isPremium && styles.premiumAvatar]}>
-          {profile?.profileIMG_url ? (
-            <Image
-              source={{ uri: profile.profileIMG_url }}
-              style={styles.profileImage}
-              resizeMode="cover"
-            />
-            ) : (
-              <Ionicons
-                name="person"
-                size={62}
-                color={COLORS.blue}
-              />
-            )}
-          </View>
+          <View
+            style={styles.profileContent}
+          >
+            <View
+              style={[
+                styles.avatarWrapper,
+                isPremium &&
+                  styles.premiumAvatar,
+              ]}
+            >
+              {profile?.profileIMG_url ? (
+                <Image
+                  source={{
+                    uri: profile.profileIMG_url,
+                  }}
+                  style={
+                    styles.profileImage
+                  }
+                  resizeMode="cover"
+                />
+              ) : (
+                <Ionicons
+                  name="person"
+                  size={62}
+                  color={COLORS.blue}
+                />
+              )}
+            </View>
 
-            <View style={styles.usernameRow}>
-              <Text style={styles.username}>
+            <View
+              style={styles.usernameRow}
+            >
+              <Text
+                style={styles.username}
+              >
                 @{profile.username}
               </Text>
 
@@ -226,50 +386,74 @@ export default function ProfileScreen({ navigation }) {
                 style={styles.statItem}
                 activeOpacity={0.7}
                 onPress={() =>
-                navigation.navigate("FollowList", {
-                  userId: profile.id,
-                  username: profile.username,
-                  initialTab: "followers",
-                })
-              }
+                  navigation.navigate(
+                    "FollowList",
+                    {
+                      userId: profile.id,
+                      username:
+                        profile.username,
+                      initialTab:
+                        "followers",
+                    }
+                  )
+                }
               >
-                <Text style={styles.statNumber}>
+                <Text
+                  style={styles.statNumber}
+                >
                   {followerCount}
                 </Text>
 
-                <Text style={styles.statLabel}>
+                <Text
+                  style={styles.statLabel}
+                >
                   Followers
                 </Text>
               </TouchableOpacity>
 
-              <View style={styles.statsDivider} />
+              <View
+                style={styles.statsDivider}
+              />
 
               <TouchableOpacity
                 style={styles.statItem}
                 activeOpacity={0.7}
                 onPress={() =>
-                navigation.navigate("FollowList", {
-                  userId: profile.id,
-                  username: profile.username,
-                  initialTab: "following",
-                })
-              }
+                  navigation.navigate(
+                    "FollowList",
+                    {
+                      userId: profile.id,
+                      username:
+                        profile.username,
+                      initialTab:
+                        "following",
+                    }
+                  )
+                }
               >
-                <Text style={styles.statNumber}>
+                <Text
+                  style={styles.statNumber}
+                >
                   {followingCount}
                 </Text>
 
-                <Text style={styles.statLabel}>
+                <Text
+                  style={styles.statLabel}
+                >
                   Following
                 </Text>
               </TouchableOpacity>
             </View>
 
             <TouchableOpacity
-              style={styles.recordingsButton}
+              style={
+                styles.recordingsButton
+              }
               activeOpacity={0.8}
               onPress={() =>
-                navigation.navigate("VoiceRecorder")
+                navigation.navigate(
+                  "VoiceRecorder"
+                )
               }
             >
               <Ionicons
@@ -278,7 +462,11 @@ export default function ProfileScreen({ navigation }) {
                 color={COLORS.offWhite}
               />
 
-              <Text style={styles.recordingsButtonText}>
+              <Text
+                style={
+                  styles.recordingsButtonText
+                }
+              >
                 My recordings
               </Text>
             </TouchableOpacity>
@@ -294,131 +482,205 @@ export default function ProfileScreen({ navigation }) {
                 color={COLORS.red}
               />
 
-              <Text style={styles.logoutButtonText}>
+              <Text
+                style={
+                  styles.logoutButtonText
+                }
+              >
                 Log out
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.sectionTitle}>
+          <Text
+            style={styles.sectionTitle}
+          >
             Choose your plan
           </Text>
 
-          <View style={styles.freePlanCard}>
-            <View style={styles.planHeader}>
-              <View style={styles.planTitleRow}>
+          <View
+            style={styles.freePlanCard}
+          >
+            <View
+              style={styles.planHeader}
+            >
+              <View
+                style={
+                  styles.planTitleRow
+                }
+              >
                 <Ionicons
                   name="checkmark-circle"
                   size={21}
                   color={COLORS.blue}
                 />
 
-                <Text style={styles.freePlanTitle}>
+                <Text
+                  style={
+                    styles.freePlanTitle
+                  }
+                >
                   Free plan
                 </Text>
               </View>
 
               {!isPremium && (
-              <View style={styles.currentPlanBadge}>
-                <Text style={styles.currentPlanText}>
-                  Current plan
-                </Text>
-              </View>
-            )}
+                <View
+                  style={
+                    styles.currentPlanBadge
+                  }
+                >
+                  <Text
+                    style={
+                      styles.currentPlanText
+                    }
+                  >
+                    Current plan
+                  </Text>
+                </View>
+              )}
             </View>
 
-            <Text style={styles.freePlanDescription}>
-              You get access to all of our features with some limits.
+            <Text
+              style={
+                styles.freePlanDescription
+              }
+            >
+              You get access to all of our
+              features with some limits.
             </Text>
           </View>
 
-          <View style={styles.premiumPlanCard}>
-            <View style={styles.planHeader}>
-              <View style={styles.planTitleRow}>
+          <View
+            style={
+              styles.premiumPlanCard
+            }
+          >
+            <View
+              style={styles.planHeader}
+            >
+              <View
+                style={
+                  styles.planTitleRow
+                }
+              >
                 <Ionicons
                   name="diamond"
                   size={21}
                   color={COLORS.green}
                 />
 
-                <Text style={styles.premiumPlanTitle}>
+                <Text
+                  style={
+                    styles.premiumPlanTitle
+                  }
+                >
                   Premium
                 </Text>
               </View>
 
-              <View style={styles.popularBadge}>
-                <Text style={styles.popularBadgeText}>
-                  {isPremium ? "Current plan" : "Most popular"}
+              <View
+                style={styles.popularBadge}
+              >
+                <Text
+                  style={
+                    styles.popularBadgeText
+                  }
+                >
+                  {isPremium
+                    ? "Current plan"
+                    : "Most popular"}
                 </Text>
               </View>
             </View>
 
-            <Text style={styles.premiumDescription}>
-              Unlock customisation and use the app without limits.
+            <Text
+              style={
+                styles.premiumDescription
+              }
+            >
+              Unlock customisation and use
+              the app without limits.
             </Text>
 
-            <View style={styles.featureRow}>
+            <View
+              style={styles.featureRow}
+            >
               <Ionicons
                 name="checkmark-circle"
                 size={20}
                 color={COLORS.green}
               />
 
-              <Text style={styles.featureText}>
+              <Text
+                style={styles.featureText}
+              >
                 Unlimited access
               </Text>
             </View>
 
-            <View style={styles.featureRow}>
+            <View
+              style={styles.featureRow}
+            >
               <Ionicons
                 name="checkmark-circle"
                 size={20}
                 color={COLORS.green}
               />
 
-              <Text style={styles.featureText}>
+              <Text
+                style={styles.featureText}
+              >
                 Unlock customisation
               </Text>
             </View>
 
-            <View style={styles.lastFeatureRow}>
-              <View style={styles.featureLeft}>
+            <View
+              style={
+                styles.lastFeatureRow
+              }
+            >
+              <View
+                style={styles.featureLeft}
+              >
                 <Ionicons
                   name="checkmark-circle"
                   size={20}
                   color={COLORS.green}
                 />
 
-                <Text style={styles.featureText}>
+                <Text
+                  style={
+                    styles.featureText
+                  }
+                >
                   More emergency contacts
                 </Text>
               </View>
 
-              <Text style={styles.priceText}>
+              <Text
+                style={styles.priceText}
+              >
                 €4.99/month
               </Text>
             </View>
           </View>
 
-          {!isPremium && (
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              activeOpacity={0.8}
-              onPress={() =>
-                console.log("Upgrade pressed")
-              }
-            >
-              <Ionicons
-                name="diamond"
-                size={21}
-                color={COLORS.offWhite}
-              />
+         <TouchableOpacity
+  style={styles.upgradeButton}
+  activeOpacity={0.8}
+  onPress={handleChangePlan}
+>
+  <Ionicons
+    name={isPremium ? "arrow-down-circle-outline" : "diamond"}
+    size={21}
+    color={COLORS.offWhite}
+  />
 
-              <Text style={styles.upgradeButtonText}>
-                Upgrade to premium
-              </Text>
-            </TouchableOpacity>
-          )}
+  <Text style={styles.upgradeButtonText}>
+    {isPremium ? "Switch to free plan" : "Upgrade to premium"}
+  </Text>
+</TouchableOpacity>
         </ScrollView>
       </View>
     </SafeAreaView>
@@ -786,12 +1048,14 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginLeft: 8,
   },
+
   profileImage: {
-  width: "100%",
-  height: "100%",
-  borderRadius: 60,
-},
-premiumAvatar: {
-  borderColor: "#D4AF37",
-},
+    width: "100%",
+    height: "100%",
+    borderRadius: 60,
+  },
+
+  premiumAvatar: {
+    borderColor: "#D4AF37",
+  },
 });
