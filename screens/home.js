@@ -366,23 +366,49 @@ useFocusEffect(
   };
 
   const callEmergencyServices = () => {
-    Alert.alert(
-      "Call emergency services",
-      "Are you sure you want to call 112?",
-      [
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-        {
-          text: "Call 112",
-          style: "destructive",
-          onPress: () => Linking.openURL("tel:112"),
-        },
-      ]
-    );
-  };
+  Alert.alert(
+    "Call emergency services",
+    "Are you sure you want to call 112?",
+    [
+      {
+        text: "Cancel",
+        style: "cancel",
+      },
+      {
+        text: "Call 112",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const phoneUrl = "tel:112";
 
+            const supported =
+              await Linking.canOpenURL(phoneUrl);
+
+            if (!supported) {
+              Alert.alert(
+                "Unable to call",
+                "Calling emergency services is not supported on this device."
+              );
+              return;
+            }
+
+            await Linking.openURL(phoneUrl);
+          } catch (error) {
+            console.log(
+              "Emergency call error:",
+              error
+            );
+
+            Alert.alert(
+              "Unable to call",
+              "The phone app could not be opened."
+            );
+          }
+        },
+      },
+    ]
+  );
+};
   return (
     <SafeAreaView style={styles.safeArea} edges={["top"]}>
       <View style={styles.screen}>
