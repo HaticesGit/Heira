@@ -8,15 +8,15 @@ import {
   Switch,
   ScrollView,
 } from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
-import * as FileSystem from "expo-file-system/legacy";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { COLORS } from "../constants/colors";
+import { supabase } from "../lib/supabase";
 
-const RECORDINGS_KEY = "heira_voice_recordings";
 const RETENTION_KEY = "heira_voice_retention";
 const RECORDER_ENABLED_KEY = "heira_voice_recorder_enabled";
 
@@ -47,10 +47,6 @@ export default function VoiceRecordingScreen({ navigation }) {
 
   const loadSavedData = async () => {
     try {
-      const savedRecordings = await AsyncStorage.getItem(
-        RECORDINGS_KEY
-      );
-
       const savedRetention = await AsyncStorage.getItem(
         RETENTION_KEY
       );
@@ -58,12 +54,6 @@ export default function VoiceRecordingScreen({ navigation }) {
       const savedEnabled = await AsyncStorage.getItem(
         RECORDER_ENABLED_KEY
       );
-
-      let parsedRecordings = [];
-
-      if (savedRecordings) {
-        parsedRecordings = JSON.parse(savedRecordings);
-      }
 
       const days = savedRetention
         ? Number(savedRetention)
@@ -75,14 +65,56 @@ export default function VoiceRecordingScreen({ navigation }) {
         savedEnabled === "true"
       );
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        setRecordings([]);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("voice_recordings")
+        .select(
+          "id, storage_path, duration, created_at"
+        )
+        .eq("user_id", session.user.id)
+        .order("created_at", {
+          ascending: false,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      const loadedRecordings =
+        (data || []).map((item) => ({
+          id: item.id,
+          storagePath:
+            item.storage_path,
+          duration:
+            item.duration || 0,
+          createdAt:
+            new Date(
+              item.created_at
+            ).getTime(),
+        }));
+
       await removeExpiredRecordings(
-        parsedRecordings,
+        loadedRecordings,
         days
       );
     } catch (error) {
       console.log(
         "Error loading voice recorder data:",
         error
+      );
+
+      Alert.alert(
+        "Could not load recordings",
+        error?.message ||
+          "Please try again."
       );
     }
   };
@@ -96,7 +128,8 @@ export default function VoiceRecordingScreen({ navigation }) {
           // Recording may already be stopped.
         }
 
-        recordingRef.current = null;
+        recordingRef.current =
+          null;
       }
 
       if (soundRef.current) {
@@ -106,259 +139,362 @@ export default function VoiceRecordingScreen({ navigation }) {
           // Sound may already be unloaded.
         }
 
-        soundRef.current = null;
+        soundRef.current =
+          null;
       }
     } catch (error) {
-      console.log("Audio cleanup error:", error);
+      console.log(
+        "Audio cleanup error:",
+        error
+      );
     }
   };
 
   const saveRecordingList = async (
     newRecordings
   ) => {
-    setRecordings(newRecordings);
-
-    await AsyncStorage.setItem(
-      RECORDINGS_KEY,
-      JSON.stringify(newRecordings)
+    setRecordings(
+      newRecordings
     );
   };
 
-  const handleUrgencyToggle = async (value) => {
-    if (value) {
+  const handleUrgencyToggle =
+    async (value) => {
+      if (value) {
+        try {
+          const { status } =
+            await Audio.requestPermissionsAsync();
+
+          if (
+            status !== "granted"
+          ) {
+            Alert.alert(
+              "Microphone access required",
+              "Please allow microphone access to use voice recording."
+            );
+
+            return;
+          }
+
+          setUrgencyRecorderEnabled(
+            true
+          );
+
+          await AsyncStorage.setItem(
+            RECORDER_ENABLED_KEY,
+            "true"
+          );
+        } catch (error) {
+          console.log(
+            "Microphone permission error:",
+            error
+          );
+
+          Alert.alert(
+            "Something went wrong",
+            "Microphone access could not be enabled."
+          );
+        }
+
+        return;
+      }
+
+      setUrgencyRecorderEnabled(
+        false
+      );
+
+      await AsyncStorage.setItem(
+        RECORDER_ENABLED_KEY,
+        "false"
+      );
+    };
+
+  const toggleRecording =
+    async () => {
+      if (isRecording) {
+        await stopRecording();
+      } else {
+        await startRecording();
+      }
+    };
+
+  const startRecording =
+    async () => {
       try {
+        if (soundRef.current) {
+          await soundRef.current.unloadAsync();
+
+          soundRef.current =
+            null;
+
+          setPlayingRecordingId(
+            null
+          );
+        }
+
         const { status } =
           await Audio.requestPermissionsAsync();
 
-        if (status !== "granted") {
+        console.log(
+          "Microphone permission:",
+          status
+        );
+
+        if (
+          status !== "granted"
+        ) {
           Alert.alert(
             "Microphone access required",
-            "Please allow microphone access to use voice recording."
+            "Please allow microphone access before recording."
           );
 
           return;
         }
 
-        setUrgencyRecorderEnabled(true);
+        await Audio.setAudioModeAsync(
+          {
+            allowsRecordingIOS:
+              true,
 
-        await AsyncStorage.setItem(
-          RECORDER_ENABLED_KEY,
-          "true"
+            playsInSilentModeIOS:
+              true,
+
+            shouldDuckAndroid:
+              true,
+
+            playThroughEarpieceAndroid:
+              false,
+
+            staysActiveInBackground:
+              false,
+          }
+        );
+
+        const recording =
+          new Audio.Recording();
+
+        await recording.prepareToRecordAsync(
+          Audio
+            .RecordingOptionsPresets
+            .HIGH_QUALITY
+        );
+
+        await recording.startAsync();
+
+        recordingRef.current =
+          recording;
+
+        recordingStartRef.current =
+          Date.now();
+
+        setIsRecording(true);
+
+        console.log(
+          "Recording started"
         );
       } catch (error) {
         console.log(
-          "Microphone permission error:",
+          "Start recording error:",
           error
         );
 
         Alert.alert(
-          "Something went wrong",
-          "Microphone access could not be enabled."
+          "Recording failed",
+          "The recording could not be started."
         );
       }
+    };
 
-      return;
-    }
+  const stopRecording =
+    async () => {
+      const recording =
+        recordingRef.current;
 
-    setUrgencyRecorderEnabled(false);
-
-    await AsyncStorage.setItem(
-      RECORDER_ENABLED_KEY,
-      "false"
-    );
-  };
-
-  const toggleRecording = async () => {
-    if (isRecording) {
-      await stopRecording();
-    } else {
-      await startRecording();
-    }
-  };
-
-  const startRecording = async () => {
-    try {
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-
-        soundRef.current = null;
-        setPlayingRecordingId(null);
-      }
-
-      const { status } =
-        await Audio.requestPermissionsAsync();
-
-      console.log(
-        "Microphone permission:",
-        status
-      );
-
-      if (status !== "granted") {
-        Alert.alert(
-          "Microphone access required",
-          "Please allow microphone access before recording."
-        );
-
+      if (!recording) {
+        setIsRecording(false);
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: true,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-        staysActiveInBackground: false,
-      });
+      try {
+        const status =
+          await recording.getStatusAsync();
 
-      const recording =
-        new Audio.Recording();
+        await recording.stopAndUnloadAsync();
 
-      await recording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets
-          .HIGH_QUALITY
-      );
+        const temporaryUri =
+          recording.getURI();
 
-      await recording.startAsync();
+        recordingRef.current =
+          null;
 
-      recordingRef.current = recording;
-      recordingStartRef.current = Date.now();
+        setIsRecording(false);
 
-      setIsRecording(true);
+        if (!temporaryUri) {
+          Alert.alert(
+            "Recording failed",
+            "No audio file was created."
+          );
 
-      console.log("Recording started");
-    } catch (error) {
-      console.log(
-        "Start recording error:",
-        error
-      );
+          return;
+        }
 
-      Alert.alert(
-        "Recording failed",
-        "The recording could not be started."
-      );
-    }
-  };
+        const duration =
+          status.durationMillis
+            ? Math.max(
+                1,
+                Math.round(
+                  status.durationMillis /
+                    1000
+                )
+              )
+            : Math.max(
+                1,
+                Math.round(
+                  (Date.now() -
+                    recordingStartRef.current) /
+                    1000
+                )
+              );
 
-  const stopRecording = async () => {
-    const recording = recordingRef.current;
+        await saveRecording(
+          temporaryUri,
+          duration
+        );
 
-    if (!recording) {
-      setIsRecording(false);
-      return;
-    }
+        recordingStartRef.current =
+          null;
+      } catch (error) {
+        console.log(
+          "Stop recording error:",
+          error
+        );
 
-    try {
-      const status =
-        await recording.getStatusAsync();
+        recordingRef.current =
+          null;
 
-      await recording.stopAndUnloadAsync();
+        recordingStartRef.current =
+          null;
 
-      const temporaryUri =
-        recording.getURI();
+        setIsRecording(false);
 
-      recordingRef.current = null;
-
-      setIsRecording(false);
-
-      if (!temporaryUri) {
         Alert.alert(
           "Recording failed",
-          "No audio file was created."
+          "The recording could not be saved."
         );
-
-        return;
       }
-
-      const duration =
-        status.durationMillis
-          ? Math.max(
-              1,
-              Math.round(
-                status.durationMillis / 1000
-              )
-            )
-          : Math.max(
-              1,
-              Math.round(
-                (Date.now() -
-                  recordingStartRef.current) /
-                  1000
-              )
-            );
-
-      await saveRecording(
-        temporaryUri,
-        duration
-      );
-
-      recordingStartRef.current = null;
-    } catch (error) {
-      console.log(
-        "Stop recording error:",
-        error
-      );
-
-      recordingRef.current = null;
-      recordingStartRef.current = null;
-
-      setIsRecording(false);
-
-      Alert.alert(
-        "Recording failed",
-        "The recording could not be saved."
-      );
-    }
-  };
+    };
 
   const saveRecording = async (
     temporaryUri,
     duration
   ) => {
     try {
-      const directory =
-        `${FileSystem.documentDirectory}heira-recordings/`;
+      const {
+        data: { session },
+      } =
+        await supabase.auth.getSession();
 
-      const directoryInfo =
-        await FileSystem.getInfoAsync(
-          directory
+      if (!session?.user) {
+        Alert.alert(
+          "Not logged in",
+          "You need to be logged in to save recordings."
         );
 
-      if (!directoryInfo.exists) {
-        await FileSystem.makeDirectoryAsync(
-          directory,
-          {
-            intermediates: true,
-          }
-        );
+        return;
       }
 
-      const createdAt = Date.now();
+      const response =
+        await fetch(
+          temporaryUri
+        );
 
-      const filename =
-        `heira-recording-${createdAt}.m4a`;
+      const audioData =
+        await response.arrayBuffer();
 
-      const permanentUri =
-        `${directory}${filename}`;
+      const createdAt =
+        Date.now();
 
-      await FileSystem.copyAsync({
-        from: temporaryUri,
-        to: permanentUri,
-      });
+      const storagePath =
+        `${session.user.id}/heira-recording-${createdAt}.m4a`;
+
+      const {
+        error: uploadError,
+      } =
+        await supabase.storage
+          .from(
+            "voice-recordings"
+          )
+          .upload(
+            storagePath,
+            audioData,
+            {
+              contentType:
+                "audio/m4a",
+              upsert: false,
+            }
+          );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const {
+        data:
+          savedRecording,
+        error:
+          insertError,
+      } = await supabase
+        .from(
+          "voice_recordings"
+        )
+        .insert({
+          user_id:
+            session.user.id,
+
+          storage_path:
+            storagePath,
+
+          duration,
+        })
+        .select(
+          "id, storage_path, duration, created_at"
+        )
+        .single();
+
+      if (insertError) {
+        await supabase.storage
+          .from(
+            "voice-recordings"
+          )
+          .remove([
+            storagePath,
+          ]);
+
+        throw insertError;
+      }
 
       const newRecording = {
-        id: String(createdAt),
-        uri: permanentUri,
-        duration,
-        createdAt,
+        id:
+          savedRecording.id,
+
+        storagePath:
+          savedRecording.storage_path,
+
+        duration:
+          savedRecording.duration ||
+          duration,
+
+        createdAt:
+          new Date(
+            savedRecording.created_at
+          ).getTime(),
       };
 
-      const updatedRecordings = [
-        newRecording,
-        ...recordings,
-      ];
-
-      await saveRecordingList(
-        updatedRecordings
+      setRecordings(
+        (current) => [
+          newRecording,
+          ...current,
+        ]
       );
 
       Alert.alert(
@@ -373,117 +509,151 @@ export default function VoiceRecordingScreen({ navigation }) {
 
       Alert.alert(
         "Could not save recording",
-        "Please try again."
+        error?.message ||
+          "Please try again."
       );
     }
   };
 
-  const playRecording = async (
-    recording
-  ) => {
-    try {
-      /*
-        Clicking the currently playing
-        recording stops playback.
-      */
-      if (
-        playingRecordingId ===
-          recording.id &&
-        soundRef.current
-      ) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
+  const playRecording =
+    async (recording) => {
+      try {
+        if (
+          playingRecordingId ===
+            recording.id &&
+          soundRef.current
+        ) {
+          await soundRef.current.stopAsync();
 
-        soundRef.current = null;
+          await soundRef.current.unloadAsync();
 
-        setPlayingRecordingId(null);
+          soundRef.current =
+            null;
 
-        return;
-      }
+          setPlayingRecordingId(
+            null
+          );
 
-      /*
-        Stop another recording if one
-        is already playing.
-      */
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
+          return;
+        }
 
-        soundRef.current = null;
+        if (soundRef.current) {
+          await soundRef.current.unloadAsync();
 
-        setPlayingRecordingId(null);
-      }
+          soundRef.current =
+            null;
 
-      const fileInfo =
-        await FileSystem.getInfoAsync(
-          recording.uri
-        );
+          setPlayingRecordingId(
+            null
+          );
+        }
 
-      if (!fileInfo.exists) {
-        Alert.alert(
-          "Recording unavailable",
-          "The audio file could not be found."
-        );
+        const {
+          data,
+          error,
+        } =
+          await supabase.storage
+            .from(
+              "voice-recordings"
+            )
+            .createSignedUrl(
+              recording.storagePath,
+              60 * 10
+            );
 
-        return;
-      }
+        if (
+          error ||
+          !data?.signedUrl
+        ) {
+          throw (
+            error ||
+            new Error(
+              "Recording URL could not be created."
+            )
+          );
+        }
 
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-      });
-
-      const { sound } =
-        await Audio.Sound.createAsync(
+        await Audio.setAudioModeAsync(
           {
-            uri: recording.uri,
-          },
-          {
-            shouldPlay: true,
-            volume: 1,
+            allowsRecordingIOS:
+              false,
+
+            playsInSilentModeIOS:
+              true,
+
+            shouldDuckAndroid:
+              true,
+
+            playThroughEarpieceAndroid:
+              false,
           }
         );
 
-      soundRef.current = sound;
+        const { sound } =
+          await Audio.Sound.createAsync(
+            {
+              uri:
+                data.signedUrl,
+            },
+            {
+              shouldPlay:
+                true,
 
-      setPlayingRecordingId(
-        recording.id
-      );
+              volume: 1,
+            }
+          );
 
-      sound.setOnPlaybackStatusUpdate(
-        (status) => {
-          if (!status.isLoaded) {
-            return;
-          }
+        soundRef.current =
+          sound;
 
-          if (status.didJustFinish) {
-            sound.unloadAsync();
+        setPlayingRecordingId(
+          recording.id
+        );
 
+        sound.setOnPlaybackStatusUpdate(
+          (status) => {
             if (
-              soundRef.current === sound
+              !status.isLoaded
             ) {
-              soundRef.current = null;
+              return;
             }
 
-            setPlayingRecordingId(null);
+            if (
+              status.didJustFinish
+            ) {
+              sound.unloadAsync();
+
+              if (
+                soundRef.current ===
+                sound
+              ) {
+                soundRef.current =
+                  null;
+              }
+
+              setPlayingRecordingId(
+                null
+              );
+            }
           }
-        }
-      );
-    } catch (error) {
-      console.log(
-        "Playback error:",
-        error
-      );
+        );
+      } catch (error) {
+        console.log(
+          "Playback error:",
+          error
+        );
 
-      setPlayingRecordingId(null);
+        setPlayingRecordingId(
+          null
+        );
 
-      Alert.alert(
-        "Playback failed",
-        "The recording could not be played."
-      );
-    }
-  };
+        Alert.alert(
+          "Playback failed",
+          error?.message ||
+            "The recording could not be played."
+        );
+      }
+    };
 
   const askDeleteRecording = (
     recording
@@ -498,69 +668,90 @@ export default function VoiceRecordingScreen({ navigation }) {
         },
         {
           text: "Delete",
-          style: "destructive",
+          style:
+            "destructive",
+
           onPress: () =>
-            deleteRecording(recording),
+            deleteRecording(
+              recording
+            ),
         },
       ]
     );
   };
 
-  const deleteRecording = async (
-    recording
-  ) => {
-    try {
-      /*
-        Stop it first if the recording
-        being deleted is playing.
-      */
-      if (
-        playingRecordingId ===
-          recording.id &&
-        soundRef.current
-      ) {
-        await soundRef.current.unloadAsync();
+  const deleteRecording =
+    async (recording) => {
+      try {
+        if (
+          playingRecordingId ===
+            recording.id &&
+          soundRef.current
+        ) {
+          await soundRef.current.unloadAsync();
 
-        soundRef.current = null;
+          soundRef.current =
+            null;
 
-        setPlayingRecordingId(null);
+          setPlayingRecordingId(
+            null
+          );
+        }
+
+        const {
+          error:
+            storageError,
+        } =
+          await supabase.storage
+            .from(
+              "voice-recordings"
+            )
+            .remove([
+              recording.storagePath,
+            ]);
+
+        if (storageError) {
+          throw storageError;
+        }
+
+        const {
+          error:
+            deleteError,
+        } = await supabase
+          .from(
+            "voice_recordings"
+          )
+          .delete()
+          .eq(
+            "id",
+            recording.id
+          );
+
+        if (deleteError) {
+          throw deleteError;
+        }
+
+        setRecordings(
+          (current) =>
+            current.filter(
+              (item) =>
+                item.id !==
+                recording.id
+            )
+        );
+      } catch (error) {
+        console.log(
+          "Delete recording error:",
+          error
+        );
+
+        Alert.alert(
+          "Could not delete recording",
+          error?.message ||
+            "Please try again."
+        );
       }
-
-      const fileInfo =
-        await FileSystem.getInfoAsync(
-          recording.uri
-        );
-
-      if (fileInfo.exists) {
-        await FileSystem.deleteAsync(
-          recording.uri,
-          {
-            idempotent: true,
-          }
-        );
-      }
-
-      const updatedRecordings =
-        recordings.filter(
-          (item) =>
-            item.id !== recording.id
-        );
-
-      await saveRecordingList(
-        updatedRecordings
-      );
-    } catch (error) {
-      console.log(
-        "Delete recording error:",
-        error
-      );
-
-      Alert.alert(
-        "Could not delete recording",
-        "Please try again."
-      );
-    }
-  };
+    };
 
   const openRecordingMenu = (
     recording
@@ -570,14 +761,23 @@ export default function VoiceRecordingScreen({ navigation }) {
       "What would you like to do?",
       [
         {
-          text: "Delete recording",
-          style: "destructive",
+          text:
+            "Delete recording",
+
+          style:
+            "destructive",
+
           onPress: () =>
-            askDeleteRecording(recording),
+            askDeleteRecording(
+              recording
+            ),
         },
         {
-          text: "Cancel",
-          style: "cancel",
+          text:
+            "Cancel",
+
+          style:
+            "cancel",
         },
       ]
     );
@@ -598,33 +798,40 @@ export default function VoiceRecordingScreen({ navigation }) {
       );
     };
 
-  const openRetentionOptions = () => {
-    Alert.alert(
-      "Store recordings for",
-      "Choose how long recordings should remain saved.",
-      [
-        {
-          text: "7 days",
-          onPress: () =>
-            updateRetentionDays(7),
-        },
-        {
-          text: "14 days",
-          onPress: () =>
-            updateRetentionDays(14),
-        },
-        {
-          text: "30 days",
-          onPress: () =>
-            updateRetentionDays(30),
-        },
-        {
-          text: "Cancel",
-          style: "cancel",
-        },
-      ]
-    );
-  };
+  const openRetentionOptions =
+    () => {
+      Alert.alert(
+        "Store recordings for",
+        "Choose how long recordings should remain saved.",
+        [
+          {
+            text: "7 days",
+            onPress: () =>
+              updateRetentionDays(
+                7
+              ),
+          },
+          {
+            text: "14 days",
+            onPress: () =>
+              updateRetentionDays(
+                14
+              ),
+          },
+          {
+            text: "30 days",
+            onPress: () =>
+              updateRetentionDays(
+                30
+              ),
+          },
+          {
+            text: "Cancel",
+            style: "cancel",
+          },
+        ]
+      );
+    };
 
   const removeExpiredRecordings =
     async (
@@ -632,7 +839,9 @@ export default function VoiceRecordingScreen({ navigation }) {
       days
     ) => {
       try {
-        if (!currentRecordings.length) {
+        if (
+          !currentRecordings.length
+        ) {
           setRecordings([]);
           return;
         }
@@ -644,7 +853,8 @@ export default function VoiceRecordingScreen({ navigation }) {
           60 *
           1000;
 
-        const now = Date.now();
+        const now =
+          Date.now();
 
         const expired =
           currentRecordings.filter(
@@ -655,17 +865,47 @@ export default function VoiceRecordingScreen({ navigation }) {
           );
 
         for (const recording of expired) {
-          try {
-            await FileSystem.deleteAsync(
-              recording.uri,
-              {
-                idempotent: true,
-              }
-            );
-          } catch (error) {
+          const {
+            error:
+              storageError,
+          } =
+            await supabase.storage
+              .from(
+                "voice-recordings"
+              )
+              .remove([
+                recording.storagePath,
+              ]);
+
+          if (
+            storageError
+          ) {
             console.log(
-              "Could not remove expired recording:",
-              error
+              "Could not remove expired recording from storage:",
+              storageError
+            );
+          }
+
+          const {
+            error:
+              deleteError,
+          } =
+            await supabase
+              .from(
+                "voice_recordings"
+              )
+              .delete()
+              .eq(
+                "id",
+                recording.id
+              );
+
+          if (
+            deleteError
+          ) {
+            console.log(
+              "Could not remove expired recording row:",
+              deleteError
             );
           }
         }
@@ -678,7 +918,7 @@ export default function VoiceRecordingScreen({ navigation }) {
               expirationTime
           );
 
-        await saveRecordingList(
+        setRecordings(
           remaining
         );
       } catch (error) {
@@ -689,24 +929,39 @@ export default function VoiceRecordingScreen({ navigation }) {
       }
     };
 
-  const formatDate = (timestamp) => {
+  const formatDate = (
+    timestamp
+  ) => {
     return new Date(
       timestamp
-    ).toLocaleDateString("en-GB", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
+    ).toLocaleDateString(
+      "en-GB",
+      {
+        day:
+          "numeric",
+
+        month:
+          "short",
+
+        year:
+          "numeric",
+      }
+    );
   };
 
-  const formatDuration = (seconds) => {
-    if (seconds < 60) {
+  const formatDuration = (
+    seconds
+  ) => {
+    if (
+      seconds < 60
+    ) {
       return `${seconds} sec`;
     }
 
-    const minutes = Math.floor(
-      seconds / 60
-    );
+    const minutes =
+      Math.floor(
+        seconds / 60
+      );
 
     const remainingSeconds =
       seconds % 60;
@@ -721,11 +976,23 @@ export default function VoiceRecordingScreen({ navigation }) {
       style={styles.safeArea}
       edges={["top"]}
     >
-      <View style={styles.screen}>
-        <View style={styles.header}>
+      <View
+        style={
+          styles.screen
+        }
+      >
+        <View
+          style={
+            styles.header
+          }
+        >
           <TouchableOpacity
-            style={styles.backButton}
-            activeOpacity={0.8}
+            style={
+              styles.backButton
+            }
+            activeOpacity={
+              0.8
+            }
             onPress={() =>
               navigation.goBack()
             }
@@ -733,11 +1000,17 @@ export default function VoiceRecordingScreen({ navigation }) {
             <Ionicons
               name="arrow-back"
               size={29}
-              color={COLORS.blue}
+              color={
+                COLORS.blue
+              }
             />
           </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
+          <Text
+            style={
+              styles.headerTitle
+            }
+          >
             Voice Recording
           </Text>
 
@@ -756,18 +1029,28 @@ export default function VoiceRecordingScreen({ navigation }) {
             styles.content
           }
         >
-          <View style={styles.infoCard}>
+          <View
+            style={
+              styles.infoCard
+            }
+          >
             <Ionicons
               name="information-circle-outline"
               size={31}
-              color={COLORS.blue}
+              color={
+                COLORS.blue
+              }
             />
 
             <View
-              style={styles.infoContent}
+              style={
+                styles.infoContent
+              }
             >
               <Text
-                style={styles.infoText}
+                style={
+                  styles.infoText
+                }
               >
                 While using the app,
                 allow Heira to record
@@ -787,9 +1070,15 @@ export default function VoiceRecordingScreen({ navigation }) {
             </View>
           </View>
 
-          <View style={styles.settingRow}>
+          <View
+            style={
+              styles.settingRow
+            }
+          >
             <Text
-              style={styles.settingLabel}
+              style={
+                styles.settingLabel
+              }
             >
               Enable Urgency Voice
               Recorder
@@ -803,8 +1092,11 @@ export default function VoiceRecordingScreen({ navigation }) {
                 handleUrgencyToggle
               }
               trackColor={{
-                false: COLORS.midGray,
-                true: COLORS.lightgreen,
+                false:
+                  COLORS.midGray,
+
+                true:
+                  COLORS.lightgreen,
               }}
               thumbColor={
                 urgencyRecorderEnabled
@@ -815,14 +1107,20 @@ export default function VoiceRecordingScreen({ navigation }) {
           </View>
 
           <TouchableOpacity
-            style={styles.retentionRow}
-            activeOpacity={0.8}
+            style={
+              styles.retentionRow
+            }
+            activeOpacity={
+              0.8
+            }
             onPress={
               openRetentionOptions
             }
           >
             <Text
-              style={styles.settingLabel}
+              style={
+                styles.settingLabel
+              }
             >
               Store recordings for:
             </Text>
@@ -843,7 +1141,9 @@ export default function VoiceRecordingScreen({ navigation }) {
               <Ionicons
                 name="chevron-down"
                 size={20}
-                color={COLORS.blue}
+                color={
+                  COLORS.blue
+                }
               />
             </View>
           </TouchableOpacity>
@@ -851,11 +1151,16 @@ export default function VoiceRecordingScreen({ navigation }) {
           <TouchableOpacity
             style={[
               styles.recordButton,
+
               isRecording &&
                 styles.recordButtonActive,
             ]}
-            activeOpacity={0.8}
-            onPress={toggleRecording}
+            activeOpacity={
+              0.8
+            }
+            onPress={
+              toggleRecording
+            }
           >
             <Ionicons
               name={
@@ -864,7 +1169,9 @@ export default function VoiceRecordingScreen({ navigation }) {
                   : "mic"
               }
               size={23}
-              color={COLORS.offWhite}
+              color={
+                COLORS.offWhite
+              }
             />
 
             <Text
@@ -900,30 +1207,47 @@ export default function VoiceRecordingScreen({ navigation }) {
             </View>
           ) : null}
 
-          <View style={styles.divider} />
+          <View
+            style={
+              styles.divider
+            }
+          />
 
           <Text
-            style={styles.sectionTitle}
+            style={
+              styles.sectionTitle
+            }
           >
             Your Recordings
           </Text>
 
-          {recordings.length === 0 ? (
-            <View style={styles.emptyState}>
+          {recordings.length ===
+          0 ? (
+            <View
+              style={
+                styles.emptyState
+              }
+            >
               <Ionicons
                 name="mic-outline"
                 size={48}
-                color={COLORS.span}
+                color={
+                  COLORS.span
+                }
               />
 
               <Text
-                style={styles.emptyTitle}
+                style={
+                  styles.emptyTitle
+                }
               >
                 No recordings yet
               </Text>
 
               <Text
-                style={styles.emptyText}
+                style={
+                  styles.emptyText
+                }
               >
                 Your saved recordings
                 will appear here.
@@ -933,18 +1257,18 @@ export default function VoiceRecordingScreen({ navigation }) {
             recordings.map(
               (recording) => (
                 <RecordingCard
-                  key={recording.id}
+                  key={
+                    recording.id
+                  }
                   recording={
                     recording
                   }
                   date={formatDate(
                     recording.createdAt
                   )}
-                  duration={
-                    formatDuration(
-                      recording.duration
-                    )
-                  }
+                  duration={formatDuration(
+                    recording.duration
+                  )}
                   isPlaying={
                     playingRecordingId ===
                     recording.id
@@ -978,18 +1302,47 @@ function RecordingCard({
   onMenu,
 }) {
   const waveform = [
-    11, 20, 14, 27, 16, 24, 12, 30,
-    17, 23, 14, 28, 18, 25, 12, 22,
-    29, 15, 24, 18, 27, 13, 22, 16,
+    11,
+    20,
+    14,
+    27,
+    16,
+    24,
+    12,
+    30,
+    17,
+    23,
+    14,
+    28,
+    18,
+    25,
+    12,
+    22,
+    29,
+    15,
+    24,
+    18,
+    27,
+    13,
+    22,
+    16,
   ];
 
   return (
-    <View style={styles.recordingCard}>
+    <View
+      style={
+        styles.recordingCard
+      }
+    >
       <View
-        style={styles.recordingTopRow}
+        style={
+          styles.recordingTopRow
+        }
       >
         <View
-          style={styles.recordingId}
+          style={
+            styles.recordingId
+          }
         >
           <Text
             style={
@@ -997,12 +1350,16 @@ function RecordingCard({
             }
           >
             #
-            {recording.id.slice(-6)}
+            {recording.id.slice(
+              -6
+            )}
           </Text>
         </View>
 
         <Text
-          style={styles.recordingDate}
+          style={
+            styles.recordingDate
+          }
         >
           {date}
         </Text>
@@ -1013,14 +1370,24 @@ function RecordingCard({
           styles.recordingBottomRow
         }
       >
-        <Text style={styles.duration}>
+        <Text
+          style={
+            styles.duration
+          }
+        >
           {duration}
         </Text>
 
         <TouchableOpacity
-          style={styles.playButton}
-          activeOpacity={0.8}
-          onPress={onPlay}
+          style={
+            styles.playButton
+          }
+          activeOpacity={
+            0.8
+          }
+          onPress={
+            onPlay
+          }
         >
           <Ionicons
             name={
@@ -1029,13 +1396,22 @@ function RecordingCard({
                 : "play"
             }
             size={16}
-            color={COLORS.offWhite}
+            color={
+              COLORS.offWhite
+            }
           />
         </TouchableOpacity>
 
-        <View style={styles.waveform}>
+        <View
+          style={
+            styles.waveform
+          }
+        >
           {waveform.map(
-            (height, index) => (
+            (
+              height,
+              index
+            ) => (
               <View
                 key={`${recording.id}-${index}`}
                 style={[
@@ -1050,14 +1426,22 @@ function RecordingCard({
         </View>
 
         <TouchableOpacity
-          style={styles.menuButton}
-          activeOpacity={0.7}
-          onPress={onMenu}
+          style={
+            styles.menuButton
+          }
+          activeOpacity={
+            0.7
+          }
+          onPress={
+            onMenu
+          }
         >
           <Ionicons
             name="ellipsis-vertical"
             size={20}
-            color={COLORS.blue}
+            color={
+              COLORS.blue
+            }
           />
         </TouchableOpacity>
       </View>
@@ -1065,265 +1449,490 @@ function RecordingCard({
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.offWhite,
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
+      backgroundColor:
+        COLORS.offWhite,
+    },
 
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.offWhite,
-  },
+    screen: {
+      flex: 1,
+      backgroundColor:
+        COLORS.offWhite,
+    },
 
-  header: {
-    height: 72,
-    paddingHorizontal: 18,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    header: {
+      height: 72,
+      paddingHorizontal:
+        18,
 
-  backButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.midGray,
-    backgroundColor: COLORS.offWhite,
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      flexDirection:
+        "row",
 
-  headerTitle: {
-    color: COLORS.blue,
-    fontSize: 24,
-    fontWeight: "700",
-  },
+      alignItems:
+        "center",
 
-  headerPlaceholder: {
-    width: 44,
-  },
+      justifyContent:
+        "space-between",
+    },
 
-  content: {
-    paddingHorizontal: 18,
-    paddingBottom: 35,
-  },
+    backButton: {
+      width: 44,
+      height: 44,
+      borderRadius: 8,
+      borderWidth: 1,
 
-  infoCard: {
-    borderRadius: 9,
-    borderWidth: 1,
-    borderColor: COLORS.span,
-    backgroundColor: COLORS.lightBlue,
-    padding: 13,
-    flexDirection: "row",
-    marginBottom: 24,
-  },
+      borderColor:
+        COLORS.midGray,
 
-  infoContent: {
-    flex: 1,
-    marginLeft: 9,
-  },
+      backgroundColor:
+        COLORS.offWhite,
 
-  infoText: {
-    color: COLORS.blue,
-    fontSize: 15,
-    lineHeight: 22,
-  },
+      alignItems:
+        "center",
 
-  infoTextBottom: {
-    color: COLORS.blue,
-    fontSize: 15,
-    lineHeight: 22,
-    marginTop: 18,
-  },
+      justifyContent:
+        "center",
+    },
 
-  settingRow: {
-    minHeight: 58,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+    headerTitle: {
+      color:
+        COLORS.blue,
 
-  settingLabel: {
-    flexShrink: 1,
-    color: COLORS.blue,
-    fontSize: 15,
-    fontWeight: "700",
-    marginRight: 10,
-  },
+      fontSize: 24,
 
-  retentionRow: {
-    minHeight: 54,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
+      fontWeight:
+        "700",
+    },
 
-  retentionValue: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+    headerPlaceholder: {
+      width: 44,
+    },
 
-  retentionText: {
-    color: COLORS.blue,
-    fontSize: 15,
-    marginRight: 5,
-  },
+    content: {
+      paddingHorizontal:
+        18,
 
-  recordButton: {
-    minHeight: 54,
-    borderRadius: 9,
-    backgroundColor: COLORS.blue,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 10,
-    marginBottom: 10,
-  },
+      paddingBottom:
+        35,
+    },
 
-  recordButtonActive: {
-    backgroundColor: COLORS.red,
-  },
+    infoCard: {
+      borderRadius: 9,
+      borderWidth: 1,
 
-  recordButtonText: {
-    color: COLORS.offWhite,
-    fontSize: 16,
-    fontWeight: "700",
-    marginLeft: 8,
-  },
+      borderColor:
+        COLORS.span,
 
-  recordingStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
+      backgroundColor:
+        COLORS.lightBlue,
 
-  recordingDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: COLORS.red,
-    marginRight: 7,
-  },
+      padding: 13,
 
-  recordingStatusText: {
-    color: COLORS.red,
-    fontSize: 13,
-    fontWeight: "600",
-  },
+      flexDirection:
+        "row",
 
-  divider: {
-    height: 1,
-    backgroundColor: COLORS.midGray,
-    marginTop: 5,
-    marginBottom: 17,
-  },
+      marginBottom:
+        24,
+    },
 
-  sectionTitle: {
-    color: COLORS.blue,
-    fontSize: 20,
-    fontWeight: "700",
-    marginBottom: 12,
-  },
+    infoContent: {
+      flex: 1,
+      marginLeft: 9,
+    },
 
-  recordingCard: {
-    minHeight: 80,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: COLORS.midGray,
-    backgroundColor: COLORS.offWhite,
-    padding: 9,
-    marginBottom: 10,
-  },
+    infoText: {
+      color:
+        COLORS.blue,
 
-  recordingTopRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 11,
-  },
+      fontSize: 15,
 
-  recordingId: {
-    backgroundColor: COLORS.blue,
-    borderRadius: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-  },
+      lineHeight:
+        22,
+    },
 
-  recordingIdText: {
-    color: COLORS.offWhite,
-    fontSize: 12,
-  },
+    infoTextBottom: {
+      color:
+        COLORS.blue,
 
-  recordingDate: {
-    color: COLORS.span,
-    fontSize: 12,
-  },
+      fontSize: 15,
 
-  recordingBottomRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
+      lineHeight:
+        22,
 
-  duration: {
-    width: 66,
-    color: COLORS.blue,
-    fontSize: 14,
-    fontWeight: "700",
-  },
+      marginTop:
+        18,
+    },
 
-  playButton: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    backgroundColor: COLORS.blue,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 9,
-  },
+    settingRow: {
+      minHeight:
+        58,
 
-  waveform: {
-    flex: 1,
-    height: 34,
-    flexDirection: "row",
-    alignItems: "center",
-    overflow: "hidden",
-  },
+      flexDirection:
+        "row",
 
-  waveBar: {
-    width: 2,
-    backgroundColor: COLORS.blue,
-    marginRight: 2,
-    borderRadius: 1,
-  },
+      alignItems:
+        "center",
 
-  menuButton: {
-    width: 30,
-    height: 36,
-    alignItems: "flex-end",
-    justifyContent: "center",
-  },
+      justifyContent:
+        "space-between",
+    },
 
-  emptyState: {
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 55,
-    paddingHorizontal: 25,
-  },
+    settingLabel: {
+      flexShrink:
+        1,
 
-  emptyTitle: {
-    color: COLORS.blue,
-    fontSize: 18,
-    fontWeight: "700",
-    marginTop: 12,
-  },
+      color:
+        COLORS.blue,
 
-  emptyText: {
-    color: COLORS.span,
-    fontSize: 14,
-    marginTop: 5,
-    textAlign: "center",
-  },
-});
+      fontSize:
+        15,
+
+      fontWeight:
+        "700",
+
+      marginRight:
+        10,
+    },
+
+    retentionRow: {
+      minHeight:
+        54,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+    },
+
+    retentionValue: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    retentionText: {
+      color:
+        COLORS.blue,
+
+      fontSize:
+        15,
+
+      marginRight:
+        5,
+    },
+
+    recordButton: {
+      minHeight:
+        54,
+
+      borderRadius:
+        9,
+
+      backgroundColor:
+        COLORS.blue,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginTop:
+        10,
+
+      marginBottom:
+        10,
+    },
+
+    recordButtonActive: {
+      backgroundColor:
+        COLORS.red,
+    },
+
+    recordButtonText: {
+      color:
+        COLORS.offWhite,
+
+      fontSize:
+        16,
+
+      fontWeight:
+        "700",
+
+      marginLeft:
+        8,
+    },
+
+    recordingStatus: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        12,
+    },
+
+    recordingDot: {
+      width: 9,
+      height: 9,
+      borderRadius:
+        5,
+
+      backgroundColor:
+        COLORS.red,
+
+      marginRight:
+        7,
+    },
+
+    recordingStatusText: {
+      color:
+        COLORS.red,
+
+      fontSize:
+        13,
+
+      fontWeight:
+        "600",
+    },
+
+    divider: {
+      height: 1,
+
+      backgroundColor:
+        COLORS.midGray,
+
+      marginTop:
+        5,
+
+      marginBottom:
+        17,
+    },
+
+    sectionTitle: {
+      color:
+        COLORS.blue,
+
+      fontSize:
+        20,
+
+      fontWeight:
+        "700",
+
+      marginBottom:
+        12,
+    },
+
+    recordingCard: {
+      minHeight:
+        80,
+
+      borderRadius:
+        10,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.midGray,
+
+      backgroundColor:
+        COLORS.offWhite,
+
+      padding: 9,
+
+      marginBottom:
+        10,
+    },
+
+    recordingTopRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "space-between",
+
+      marginBottom:
+        11,
+    },
+
+    recordingId: {
+      backgroundColor:
+        COLORS.blue,
+
+      borderRadius:
+        5,
+
+      paddingHorizontal:
+        8,
+
+      paddingVertical:
+        3,
+    },
+
+    recordingIdText: {
+      color:
+        COLORS.offWhite,
+
+      fontSize:
+        12,
+    },
+
+    recordingDate: {
+      color:
+        COLORS.span,
+
+      fontSize:
+        12,
+    },
+
+    recordingBottomRow: {
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+    },
+
+    duration: {
+      width:
+        66,
+
+      color:
+        COLORS.blue,
+
+      fontSize:
+        14,
+
+      fontWeight:
+        "700",
+    },
+
+    playButton: {
+      width:
+        30,
+
+      height:
+        30,
+
+      borderRadius:
+        15,
+
+      backgroundColor:
+        COLORS.blue,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginRight:
+        9,
+    },
+
+    waveform: {
+      flex: 1,
+
+      height:
+        34,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      overflow:
+        "hidden",
+    },
+
+    waveBar: {
+      width: 2,
+
+      backgroundColor:
+        COLORS.blue,
+
+      marginRight:
+        2,
+
+      borderRadius:
+        1,
+    },
+
+    menuButton: {
+      width:
+        30,
+
+      height:
+        36,
+
+      alignItems:
+        "flex-end",
+
+      justifyContent:
+        "center",
+    },
+
+    emptyState: {
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingVertical:
+        55,
+
+      paddingHorizontal:
+        25,
+    },
+
+    emptyTitle: {
+      color:
+        COLORS.blue,
+
+      fontSize:
+        18,
+
+      fontWeight:
+        "700",
+
+      marginTop:
+        12,
+    },
+
+    emptyText: {
+      color:
+        COLORS.span,
+
+      fontSize:
+        14,
+
+      marginTop:
+        5,
+
+      textAlign:
+        "center",
+    },
+  });
