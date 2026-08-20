@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking, Image } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking, Image, Platform } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
@@ -173,16 +173,19 @@ useFocusEffect(
     }
 
     // 4. Check if SMS is available
-    const isSmsAvailable = await SMS.isAvailableAsync();
+    if (Platform.OS !== "web") {
+  const isSmsAvailable =
+    await SMS.isAvailableAsync();
 
-    if (!isSmsAvailable) {
-      Alert.alert(
-        "SMS unavailable",
-        "SMS is not available on this device."
-      );
+  if (!isSmsAvailable) {
+    Alert.alert(
+      "SMS unavailable",
+      "SMS is not available on this device."
+    );
 
-      return;
-    }
+    return;
+  }
+}
 
     // 5. Get current location
     const currentLocation =
@@ -252,10 +255,28 @@ useFocusEffect(
     }
 
     // 10. Open SMS composer
-    await SMS.sendSMSAsync(
-      phoneNumbers,
-      `I'm sharing my live location with you through Heira. Follow my live location here: ${shareUrl}`
-    );
+    const message =
+  `I'm sharing my live location with you through Heira. ` +
+  `Follow my live location here: ${shareUrl}`;
+
+if (Platform.OS === "web") {
+  const phoneNumber =
+    phoneNumbers[0];
+
+  const smsUrl =
+    `sms:${phoneNumber}?body=${encodeURIComponent(
+      message
+    )}`;
+
+  if (typeof window !== "undefined") {
+    window.location.href = smsUrl;
+  }
+} else {
+  await SMS.sendSMSAsync(
+    phoneNumbers,
+    message
+  );
+}
 
     // 11. Start watching live location
     locationWatcherRef.current =
@@ -366,6 +387,30 @@ useFocusEffect(
   };
 
   const callEmergencyServices = () => {
+  const confirmCall = async () => {
+    try {
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined") {
+          window.location.href = "tel:112";
+        }
+
+        return;
+      }
+
+      await Linking.openURL("tel:112");
+    } catch (error) {
+      console.log(
+        "Emergency call error:",
+        error
+      );
+
+      Alert.alert(
+        "Unable to call",
+        "The phone app could not be opened."
+      );
+    }
+  };
+
   Alert.alert(
     "Call emergency services",
     "Are you sure you want to call 112?",
@@ -377,34 +422,7 @@ useFocusEffect(
       {
         text: "Call 112",
         style: "destructive",
-        onPress: async () => {
-          try {
-            const phoneUrl = "tel:112";
-
-            const supported =
-              await Linking.canOpenURL(phoneUrl);
-
-            if (!supported) {
-              Alert.alert(
-                "Unable to call",
-                "Calling emergency services is not supported on this device."
-              );
-              return;
-            }
-
-            await Linking.openURL(phoneUrl);
-          } catch (error) {
-            console.log(
-              "Emergency call error:",
-              error
-            );
-
-            Alert.alert(
-              "Unable to call",
-              "The phone app could not be opened."
-            );
-          }
-        },
+        onPress: confirmCall,
       },
     ]
   );
