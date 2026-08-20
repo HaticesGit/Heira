@@ -34,70 +34,172 @@ const formatTime = (time) => {
 };
 
 const fetchFutureMeetups = async () => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  if (session?.user) {
-  const { data: profileData } = await supabase
-    .from("profiles")
-    .select("profileIMG_url")
-    .eq("id", session.user.id)
-    .single();
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
 
-  setCurrentUserImage(
-    profileData?.profileIMG_url || null
-  );
-}
+    if (!session?.user) {
+      console.log("No logged in user");
 
-  if (!session) {
+      setMeetups([]);
+      setCurrentUserImage(null);
+      return;
+    }
+
+    console.log(
+      "HOME USER ID:",
+      session.user.id
+    );
+
+    // PROFILE IMAGE
+    const {
+      data: profileData,
+      error: profileError,
+    } = await supabase
+      .from("profiles")
+      .select("profileIMG_url")
+      .eq("id", session.user.id)
+      .single();
+
+    if (profileError) {
+      console.log(
+        "Profile image error:",
+        profileError
+      );
+    }
+
+    setCurrentUserImage(
+      profileData?.profileIMG_url || null
+    );
+
+    // GET ALL MEETUPS THIS USER JOINED
+    const {
+      data: participantData,
+      error: participantError,
+    } = await supabase
+      .from("meetup_participants")
+      .select("meetup_id")
+      .eq("user_id", session.user.id);
+
+    if (participantError) {
+      console.log(
+        "Error fetching joined meetups:",
+        participantError
+      );
+
+      setMeetups([]);
+      return;
+    }
+
+    console.log(
+      "JOINED MEETUPS:",
+      participantData
+    );
+
+    const meetupIds = [
+      ...new Set(
+        (participantData || [])
+          .map(
+            (participant) =>
+              participant.meetup_id
+          )
+          .filter(Boolean)
+      ),
+    ];
+
+    console.log(
+      "MEETUP IDS:",
+      meetupIds
+    );
+
+    if (meetupIds.length === 0) {
+      setMeetups([]);
+      return;
+    }
+
+    // GET THE ACTUAL MEETUPS
+    const {
+      data: meetupData,
+      error: meetupError,
+    } = await supabase
+      .from("meetups")
+      .select("*")
+      .in("id", meetupIds)
+      .order("meetup_date", {
+        ascending: true,
+      });
+
+    if (meetupError) {
+      console.log(
+        "Error fetching meetup details:",
+        meetupError
+      );
+
+      setMeetups([]);
+      return;
+    }
+
+    console.log(
+      "FOUND MEETUPS:",
+      meetupData
+    );
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const futureMeetups =
+      (meetupData || []).filter(
+        (meetup) => {
+          if (!meetup.meetup_date) {
+            return true;
+          }
+
+          const meetupDate =
+            new Date(
+              `${meetup.meetup_date}T00:00:00`
+            );
+
+          return meetupDate >= today;
+        }
+      );
+
+    const formattedMeetups =
+      futureMeetups.map((meetup) => ({
+        id: meetup.id.toString(),
+        creatorId:
+          meetup.creator_id,
+        username:
+          meetup.username,
+        title:
+          meetup.title ||
+          meetup.location,
+        location:
+          meetup.location,
+        date: formatDate(
+          meetup.meetup_date
+        ),
+        time: formatTime(
+          meetup.meetup_time
+        ),
+        category:
+          meetup.category,
+      }));
+
+    console.log(
+      "FINAL HOME MEETUPS:",
+      formattedMeetups
+    );
+
+    setMeetups(formattedMeetups);
+  } catch (error) {
+    console.log(
+      "Unexpected future meetup error:",
+      error
+    );
+
     setMeetups([]);
-    return;
   }
-
-  const { data: participantData, error: participantError } = await supabase
-    .from("meetup_participants")
-    .select("meetup_id")
-    .eq("user_id", session.user.id);
-
-  if (participantError) {
-    console.error("Error fetching joined meetups:", participantError);
-    return;
-  }
-
-  const meetupIds = participantData.map(
-    (participant) => participant.meetup_id
-  );
-
-  if (meetupIds.length === 0) {
-    setMeetups([]);
-    return;
-  }
-
-  const today = new Date().toISOString().split("T")[0];
-
-  const { data: meetupData, error: meetupError } = await supabase
-    .from("meetups")
-    .select("*")
-    .in("id", meetupIds)
-    .gte("meetup_date", today)
-    .order("meetup_date", { ascending: true });
-
-  if (meetupError) {
-    console.error("Error fetching future meetups:", meetupError);
-    return;
-  }
-
-  const formattedMeetups = meetupData.map((meetup) => ({
-    id: meetup.id.toString(),
-    creatorId: meetup.creator_id,
-    username: meetup.username,
-    location: meetup.location,
-    date: formatDate(meetup.meetup_date),
-    time: formatTime(meetup.meetup_time),
-    category: meetup.category,
-  }));
-
-  setMeetups(formattedMeetups);
 };
 useFocusEffect(
   React.useCallback(() => {
