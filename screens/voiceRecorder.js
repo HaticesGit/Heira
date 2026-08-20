@@ -1,256 +1,1329 @@
 import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Alert,
+  Switch,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
+import * as FileSystem from "expo-file-system/legacy";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-export default function VoiceRecordingScreen() {
+import { COLORS } from "../constants/colors";
+
+const RECORDINGS_KEY = "heira_voice_recordings";
+const RETENTION_KEY = "heira_voice_retention";
+const RECORDER_ENABLED_KEY = "heira_voice_recorder_enabled";
+
+export default function VoiceRecordingScreen({ navigation }) {
   const recordingRef = useRef(null);
   const soundRef = useRef(null);
+  const recordingStartRef = useRef(null);
+
+  const [urgencyRecorderEnabled, setUrgencyRecorderEnabled] =
+    useState(false);
+
+  const [retentionDays, setRetentionDays] = useState(7);
+
+  const [recordings, setRecordings] = useState([]);
 
   const [isRecording, setIsRecording] = useState(false);
-  const [recordingUri, setRecordingUri] = useState(null);
-  const [isPlaying, setIsPlaying] = useState(false);
+
+  const [playingRecordingId, setPlayingRecordingId] =
+    useState(null);
 
   useEffect(() => {
-    (async () => {
-      try {
-        const { status } = await Audio.requestPermissionsAsync();
-        console.log("Mic permission:", status);
-
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          shouldDuckAndroid: true,
-          playThroughEarpieceAndroid: false,
-          staysActiveInBackground: false,
-        });
-
-        console.log("Audio mode");
-      } catch (e) {
-        console.log("errorr:", e);
-      }
-    })();
+    loadSavedData();
 
     return () => {
-      (async () => {
-        try {
-          if (soundRef.current) {
-            await soundRef.current.unloadAsync();
-            soundRef.current = null;
-          }
-        } catch {
-        }
-      })();
+      cleanupAudio();
     };
   }, []);
+
+  const loadSavedData = async () => {
+    try {
+      const savedRecordings = await AsyncStorage.getItem(
+        RECORDINGS_KEY
+      );
+
+      const savedRetention = await AsyncStorage.getItem(
+        RETENTION_KEY
+      );
+
+      const savedEnabled = await AsyncStorage.getItem(
+        RECORDER_ENABLED_KEY
+      );
+
+      let parsedRecordings = [];
+
+      if (savedRecordings) {
+        parsedRecordings = JSON.parse(savedRecordings);
+      }
+
+      const days = savedRetention
+        ? Number(savedRetention)
+        : 7;
+
+      setRetentionDays(days);
+
+      setUrgencyRecorderEnabled(
+        savedEnabled === "true"
+      );
+
+      await removeExpiredRecordings(
+        parsedRecordings,
+        days
+      );
+    } catch (error) {
+      console.log(
+        "Error loading voice recorder data:",
+        error
+      );
+    }
+  };
+
+  const cleanupAudio = async () => {
+    try {
+      if (recordingRef.current) {
+        try {
+          await recordingRef.current.stopAndUnloadAsync();
+        } catch {
+          // Recording may already be stopped.
+        }
+
+        recordingRef.current = null;
+      }
+
+      if (soundRef.current) {
+        try {
+          await soundRef.current.unloadAsync();
+        } catch {
+          // Sound may already be unloaded.
+        }
+
+        soundRef.current = null;
+      }
+    } catch (error) {
+      console.log("Audio cleanup error:", error);
+    }
+  };
+
+  const saveRecordingList = async (
+    newRecordings
+  ) => {
+    setRecordings(newRecordings);
+
+    await AsyncStorage.setItem(
+      RECORDINGS_KEY,
+      JSON.stringify(newRecordings)
+    );
+  };
+
+  const handleUrgencyToggle = async (value) => {
+    if (value) {
+      try {
+        const { status } =
+          await Audio.requestPermissionsAsync();
+
+        if (status !== "granted") {
+          Alert.alert(
+            "Microphone access required",
+            "Please allow microphone access to use voice recording."
+          );
+
+          return;
+        }
+
+        setUrgencyRecorderEnabled(true);
+
+        await AsyncStorage.setItem(
+          RECORDER_ENABLED_KEY,
+          "true"
+        );
+      } catch (error) {
+        console.log(
+          "Microphone permission error:",
+          error
+        );
+
+        Alert.alert(
+          "Something went wrong",
+          "Microphone access could not be enabled."
+        );
+      }
+
+      return;
+    }
+
+    setUrgencyRecorderEnabled(false);
+
+    await AsyncStorage.setItem(
+      RECORDER_ENABLED_KEY,
+      "false"
+    );
+  };
+
+  const toggleRecording = async () => {
+    if (isRecording) {
+      await stopRecording();
+    } else {
+      await startRecording();
+    }
+  };
 
   const startRecording = async () => {
     try {
       if (soundRef.current) {
         await soundRef.current.unloadAsync();
+
         soundRef.current = null;
+        setPlayingRecordingId(null);
       }
-      setIsPlaying(false);
-      const recording = new Audio.Recording();
-      await recording.prepareToRecordAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+
+      const { status } =
+        await Audio.requestPermissionsAsync();
+
+      console.log(
+        "Microphone permission:",
+        status
       );
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Microphone access required",
+          "Please allow microphone access before recording."
+        );
+
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
+      });
+
+      const recording =
+        new Audio.Recording();
+
+      await recording.prepareToRecordAsync(
+        Audio.RecordingOptionsPresets
+          .HIGH_QUALITY
+      );
+
       await recording.startAsync();
+
       recordingRef.current = recording;
+      recordingStartRef.current = Date.now();
+
       setIsRecording(true);
-      setRecordingUri(null);
-      console.log("Recording startedddd");
-    } catch (e) {
-      console.log("Start error:", e);
-      Alert.alert("Start opname mislukt", String(e));
+
+      console.log("Recording started");
+    } catch (error) {
+      console.log(
+        "Start recording error:",
+        error
+      );
+
+      Alert.alert(
+        "Recording failed",
+        "The recording could not be started."
+      );
     }
   };
 
   const stopRecording = async () => {
-    try {
-      if (!recordingRef.current) return;
+    const recording = recordingRef.current;
 
-      await recordingRef.current.stopAndUnloadAsync();
-      const uri = recordingRef.current.getURI();
+    if (!recording) {
+      setIsRecording(false);
+      return;
+    }
+
+    try {
+      const status =
+        await recording.getStatusAsync();
+
+      await recording.stopAndUnloadAsync();
+
+      const temporaryUri =
+        recording.getURI();
 
       recordingRef.current = null;
+
       setIsRecording(false);
-      setRecordingUri(uri);
 
-      console.log("Recorded URI:", uri);
-    } catch (e) {
-      console.log("Stop error:", e);
-      setIsRecording(false);
-      Alert.alert("Stop opname mislukt", String(e));
-    }
-  };
+      if (!temporaryUri) {
+        Alert.alert(
+          "Recording failed",
+          "No audio file was created."
+        );
 
-  const playRecording = async () => {
-    try {
-      if (!recordingUri) return;
-
-      // if already playing -> stop
-      if (isPlaying && soundRef.current) {
-        await soundRef.current.stopAsync();
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
-        setIsPlaying(false);
         return;
       }
 
-      // unload previous sound if any
-      if (soundRef.current) {
-        await soundRef.current.unloadAsync();
-        soundRef.current = null;
+      const duration =
+        status.durationMillis
+          ? Math.max(
+              1,
+              Math.round(
+                status.durationMillis / 1000
+              )
+            )
+          : Math.max(
+              1,
+              Math.round(
+                (Date.now() -
+                  recordingStartRef.current) /
+                  1000
+              )
+            );
+
+      await saveRecording(
+        temporaryUri,
+        duration
+      );
+
+      recordingStartRef.current = null;
+    } catch (error) {
+      console.log(
+        "Stop recording error:",
+        error
+      );
+
+      recordingRef.current = null;
+      recordingStartRef.current = null;
+
+      setIsRecording(false);
+
+      Alert.alert(
+        "Recording failed",
+        "The recording could not be saved."
+      );
+    }
+  };
+
+  const saveRecording = async (
+    temporaryUri,
+    duration
+  ) => {
+    try {
+      const directory =
+        `${FileSystem.documentDirectory}heira-recordings/`;
+
+      const directoryInfo =
+        await FileSystem.getInfoAsync(
+          directory
+        );
+
+      if (!directoryInfo.exists) {
+        await FileSystem.makeDirectoryAsync(
+          directory,
+          {
+            intermediates: true,
+          }
+        );
       }
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: recordingUri },
-        { shouldPlay: false }
+      const createdAt = Date.now();
+
+      const filename =
+        `heira-recording-${createdAt}.m4a`;
+
+      const permanentUri =
+        `${directory}${filename}`;
+
+      await FileSystem.copyAsync({
+        from: temporaryUri,
+        to: permanentUri,
+      });
+
+      const newRecording = {
+        id: String(createdAt),
+        uri: permanentUri,
+        duration,
+        createdAt,
+      };
+
+      const updatedRecordings = [
+        newRecording,
+        ...recordings,
+      ];
+
+      await saveRecordingList(
+        updatedRecordings
       );
+
+      Alert.alert(
+        "Recording saved",
+        "Your recording was saved successfully."
+      );
+    } catch (error) {
+      console.log(
+        "Save recording error:",
+        error
+      );
+
+      Alert.alert(
+        "Could not save recording",
+        "Please try again."
+      );
+    }
+  };
+
+  const playRecording = async (
+    recording
+  ) => {
+    try {
+      /*
+        Clicking the currently playing
+        recording stops playback.
+      */
+      if (
+        playingRecordingId ===
+          recording.id &&
+        soundRef.current
+      ) {
+        await soundRef.current.stopAsync();
+        await soundRef.current.unloadAsync();
+
+        soundRef.current = null;
+
+        setPlayingRecordingId(null);
+
+        return;
+      }
+
+      /*
+        Stop another recording if one
+        is already playing.
+      */
+      if (soundRef.current) {
+        await soundRef.current.unloadAsync();
+
+        soundRef.current = null;
+
+        setPlayingRecordingId(null);
+      }
+
+      const fileInfo =
+        await FileSystem.getInfoAsync(
+          recording.uri
+        );
+
+      if (!fileInfo.exists) {
+        Alert.alert(
+          "Recording unavailable",
+          "The audio file could not be found."
+        );
+
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const { sound } =
+        await Audio.Sound.createAsync(
+          {
+            uri: recording.uri,
+          },
+          {
+            shouldPlay: true,
+            volume: 1,
+          }
+        );
 
       soundRef.current = sound;
 
-      await sound.setVolumeAsync(1.0);
-      setIsPlaying(true);
-      await sound.playAsync();
+      setPlayingRecordingId(
+        recording.id
+      );
 
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
+      sound.setOnPlaybackStatusUpdate(
+        (status) => {
+          if (!status.isLoaded) {
+            return;
+          }
 
-        if (status.didJustFinish) {
-          sound.unloadAsync();
-          soundRef.current = null;
-          setIsPlaying(false);
+          if (status.didJustFinish) {
+            sound.unloadAsync();
+
+            if (
+              soundRef.current === sound
+            ) {
+              soundRef.current = null;
+            }
+
+            setPlayingRecordingId(null);
+          }
         }
-      });
-    } catch (e) {
-      console.log("Play error:", e);
-      setIsPlaying(false);
-      Alert.alert("Afspelen mislukt", String(e));
+      );
+    } catch (error) {
+      console.log(
+        "Playback error:",
+        error
+      );
+
+      setPlayingRecordingId(null);
+
+      Alert.alert(
+        "Playback failed",
+        "The recording could not be played."
+      );
     }
   };
 
-  const clearRecording = async () => {
+  const askDeleteRecording = (
+    recording
+  ) => {
+    Alert.alert(
+      "Delete recording?",
+      "This recording will be permanently removed.",
+      [
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            deleteRecording(recording),
+        },
+      ]
+    );
+  };
+
+  const deleteRecording = async (
+    recording
+  ) => {
     try {
-      if (soundRef.current) {
+      /*
+        Stop it first if the recording
+        being deleted is playing.
+      */
+      if (
+        playingRecordingId ===
+          recording.id &&
+        soundRef.current
+      ) {
         await soundRef.current.unloadAsync();
+
         soundRef.current = null;
+
+        setPlayingRecordingId(null);
       }
-      setIsPlaying(false);
-      setRecordingUri(null);
-    } catch {
-      setIsPlaying(false);
-      setRecordingUri(null);
+
+      const fileInfo =
+        await FileSystem.getInfoAsync(
+          recording.uri
+        );
+
+      if (fileInfo.exists) {
+        await FileSystem.deleteAsync(
+          recording.uri,
+          {
+            idempotent: true,
+          }
+        );
+      }
+
+      const updatedRecordings =
+        recordings.filter(
+          (item) =>
+            item.id !== recording.id
+        );
+
+      await saveRecordingList(
+        updatedRecordings
+      );
+    } catch (error) {
+      console.log(
+        "Delete recording error:",
+        error
+      );
+
+      Alert.alert(
+        "Could not delete recording",
+        "Please try again."
+      );
     }
   };
 
-  const playDisabled = !recordingUri || isRecording;
+  const openRecordingMenu = (
+    recording
+  ) => {
+    Alert.alert(
+      "Recording",
+      "What would you like to do?",
+      [
+        {
+          text: "Delete recording",
+          style: "destructive",
+          onPress: () =>
+            askDeleteRecording(recording),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const updateRetentionDays =
+    async (days) => {
+      setRetentionDays(days);
+
+      await AsyncStorage.setItem(
+        RETENTION_KEY,
+        String(days)
+      );
+
+      await removeExpiredRecordings(
+        recordings,
+        days
+      );
+    };
+
+  const openRetentionOptions = () => {
+    Alert.alert(
+      "Store recordings for",
+      "Choose how long recordings should remain saved.",
+      [
+        {
+          text: "7 days",
+          onPress: () =>
+            updateRetentionDays(7),
+        },
+        {
+          text: "14 days",
+          onPress: () =>
+            updateRetentionDays(14),
+        },
+        {
+          text: "30 days",
+          onPress: () =>
+            updateRetentionDays(30),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ]
+    );
+  };
+
+  const removeExpiredRecordings =
+    async (
+      currentRecordings,
+      days
+    ) => {
+      try {
+        if (!currentRecordings.length) {
+          setRecordings([]);
+          return;
+        }
+
+        const expirationTime =
+          days *
+          24 *
+          60 *
+          60 *
+          1000;
+
+        const now = Date.now();
+
+        const expired =
+          currentRecordings.filter(
+            (recording) =>
+              now -
+                recording.createdAt >
+              expirationTime
+          );
+
+        for (const recording of expired) {
+          try {
+            await FileSystem.deleteAsync(
+              recording.uri,
+              {
+                idempotent: true,
+              }
+            );
+          } catch (error) {
+            console.log(
+              "Could not remove expired recording:",
+              error
+            );
+          }
+        }
+
+        const remaining =
+          currentRecordings.filter(
+            (recording) =>
+              now -
+                recording.createdAt <=
+              expirationTime
+          );
+
+        await saveRecordingList(
+          remaining
+        );
+      } catch (error) {
+        console.log(
+          "Retention cleanup error:",
+          error
+        );
+      }
+    };
+
+  const formatDate = (timestamp) => {
+    return new Date(
+      timestamp
+    ).toLocaleDateString("en-GB", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  const formatDuration = (seconds) => {
+    if (seconds < 60) {
+      return `${seconds} sec`;
+    }
+
+    const minutes = Math.floor(
+      seconds / 60
+    );
+
+    const remainingSeconds =
+      seconds % 60;
+
+    return `${minutes}:${String(
+      remainingSeconds
+    ).padStart(2, "0")}`;
+  };
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Voice Recorder</Text>
+    <SafeAreaView
+      style={styles.safeArea}
+      edges={["top"]}
+    >
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.backButton}
+            activeOpacity={0.8}
+            onPress={() =>
+              navigation.goBack()
+            }
+          >
+            <Ionicons
+              name="arrow-back"
+              size={29}
+              color={COLORS.blue}
+            />
+          </TouchableOpacity>
 
-      <Text style={styles.status}>
-        {isRecording
-          ? "Recording..."
-          : isPlaying
-          ? "Playing..."
-          : recordingUri
-          ? "Recording ready!"
-          : "No recording yet"}
-      </Text>
-      <TouchableOpacity
-        style={[styles.button, isRecording ? styles.stop : styles.start]}
-        onPress={isRecording ? stopRecording : startRecording}
+          <Text style={styles.headerTitle}>
+            Voice Recording
+          </Text>
+
+          <View
+            style={
+              styles.headerPlaceholder
+            }
+          />
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={
+            false
+          }
+          contentContainerStyle={
+            styles.content
+          }
+        >
+          <View style={styles.infoCard}>
+            <Ionicons
+              name="information-circle-outline"
+              size={31}
+              color={COLORS.blue}
+            />
+
+            <View
+              style={styles.infoContent}
+            >
+              <Text
+                style={styles.infoText}
+              >
+                While using the app,
+                allow Heira to record
+                sounds and store them for
+                safety purposes.
+              </Text>
+
+              <Text
+                style={
+                  styles.infoTextBottom
+                }
+              >
+                This feature is disabled
+                by default and requires
+                microphone access.
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.settingRow}>
+            <Text
+              style={styles.settingLabel}
+            >
+              Enable Urgency Voice
+              Recorder
+            </Text>
+
+            <Switch
+              value={
+                urgencyRecorderEnabled
+              }
+              onValueChange={
+                handleUrgencyToggle
+              }
+              trackColor={{
+                false: COLORS.midGray,
+                true: COLORS.lightgreen,
+              }}
+              thumbColor={
+                urgencyRecorderEnabled
+                  ? COLORS.green
+                  : COLORS.span
+              }
+            />
+          </View>
+
+          <TouchableOpacity
+            style={styles.retentionRow}
+            activeOpacity={0.8}
+            onPress={
+              openRetentionOptions
+            }
+          >
+            <Text
+              style={styles.settingLabel}
+            >
+              Store recordings for:
+            </Text>
+
+            <View
+              style={
+                styles.retentionValue
+              }
+            >
+              <Text
+                style={
+                  styles.retentionText
+                }
+              >
+                {retentionDays} days
+              </Text>
+
+              <Ionicons
+                name="chevron-down"
+                size={20}
+                color={COLORS.blue}
+              />
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.recordButton,
+              isRecording &&
+                styles.recordButtonActive,
+            ]}
+            activeOpacity={0.8}
+            onPress={toggleRecording}
+          >
+            <Ionicons
+              name={
+                isRecording
+                  ? "stop"
+                  : "mic"
+              }
+              size={23}
+              color={COLORS.offWhite}
+            />
+
+            <Text
+              style={
+                styles.recordButtonText
+              }
+            >
+              {isRecording
+                ? "Stop recording"
+                : "Start recording"}
+            </Text>
+          </TouchableOpacity>
+
+          {isRecording ? (
+            <View
+              style={
+                styles.recordingStatus
+              }
+            >
+              <View
+                style={
+                  styles.recordingDot
+                }
+              />
+
+              <Text
+                style={
+                  styles.recordingStatusText
+                }
+              >
+                Recording in progress...
+              </Text>
+            </View>
+          ) : null}
+
+          <View style={styles.divider} />
+
+          <Text
+            style={styles.sectionTitle}
+          >
+            Your Recordings
+          </Text>
+
+          {recordings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="mic-outline"
+                size={48}
+                color={COLORS.span}
+              />
+
+              <Text
+                style={styles.emptyTitle}
+              >
+                No recordings yet
+              </Text>
+
+              <Text
+                style={styles.emptyText}
+              >
+                Your saved recordings
+                will appear here.
+              </Text>
+            </View>
+          ) : (
+            recordings.map(
+              (recording) => (
+                <RecordingCard
+                  key={recording.id}
+                  recording={
+                    recording
+                  }
+                  date={formatDate(
+                    recording.createdAt
+                  )}
+                  duration={
+                    formatDuration(
+                      recording.duration
+                    )
+                  }
+                  isPlaying={
+                    playingRecordingId ===
+                    recording.id
+                  }
+                  onPlay={() =>
+                    playRecording(
+                      recording
+                    )
+                  }
+                  onMenu={() =>
+                    openRecordingMenu(
+                      recording
+                    )
+                  }
+                />
+              )
+            )
+          )}
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function RecordingCard({
+  recording,
+  date,
+  duration,
+  isPlaying,
+  onPlay,
+  onMenu,
+}) {
+  const waveform = [
+    11, 20, 14, 27, 16, 24, 12, 30,
+    17, 23, 14, 28, 18, 25, 12, 22,
+    29, 15, 24, 18, 27, 13, 22, 16,
+  ];
+
+  return (
+    <View style={styles.recordingCard}>
+      <View
+        style={styles.recordingTopRow}
       >
-        <Text style={styles.buttonText}>
-          {isRecording ? "Stop" : "Start opname"}
+        <View
+          style={styles.recordingId}
+        >
+          <Text
+            style={
+              styles.recordingIdText
+            }
+          >
+            #
+            {recording.id.slice(-6)}
+          </Text>
+        </View>
+
+        <Text
+          style={styles.recordingDate}
+        >
+          {date}
         </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={[
-          styles.button,
-          playDisabled ? styles.disabled : styles.play,
-        ]}
-        onPress={playRecording}
-        disabled={playDisabled}
+      </View>
+
+      <View
+        style={
+          styles.recordingBottomRow
+        }
       >
-        <Text style={styles.buttonText}>
-          {isPlaying ? "Stop playback" : "Play"}
+        <Text style={styles.duration}>
+          {duration}
         </Text>
-      </TouchableOpacity>
 
-      {/* WISSEN */}
-      <TouchableOpacity
-        style={[styles.linkBtn, !recordingUri && styles.linkDisabled]}
-        onPress={clearRecording}
-        disabled={!recordingUri}
-      >
-        <Text style={styles.linkText}>Delete recording</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.playButton}
+          activeOpacity={0.8}
+          onPress={onPlay}
+        >
+          <Ionicons
+            name={
+              isPlaying
+                ? "stop"
+                : "play"
+            }
+            size={16}
+            color={COLORS.offWhite}
+          />
+        </TouchableOpacity>
 
-      <Text style={styles.saved} numberOfLines={2}>
-        Saved voice recording 1
-      </Text>
+        <View style={styles.waveform}>
+          {waveform.map(
+            (height, index) => (
+              <View
+                key={`${recording.id}-${index}`}
+                style={[
+                  styles.waveBar,
+                  {
+                    height,
+                  },
+                ]}
+              />
+            )
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={styles.menuButton}
+          activeOpacity={0.7}
+          onPress={onMenu}
+        >
+          <Ionicons
+            name="ellipsis-vertical"
+            size={20}
+            color={COLORS.blue}
+          />
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-    container: { 
-        flex: 1, 
-        justifyContent: "center", 
-        padding: 20 
-    },
-    title: {
-        fontSize: 22,
-        fontWeight: "700",
-        textAlign: "center",
-        marginBottom: 10,
-    },
-    status: { 
-        textAlign: "center", 
-        marginBottom: 20, 
-        color: "#444" 
-    },
-    button: {
-        paddingVertical: 14,
-        borderRadius: 10,
-        alignItems: "center",
-        marginBottom: 12,
-    },
-    start: { 
-        backgroundColor: "#0066FF"
-    },
-    stop: { 
-        backgroundColor: "#b00020" 
-    },
-    play: { 
-        backgroundColor: "#0066FF"
-    },
-    disabled: { 
-        backgroundColor: "#999" 
-    },
-    buttonText: { 
-        color: "white", 
-        fontSize: 16, 
-        fontWeight: "600"
-    },
-    linkBtn: { 
-        paddingVertical: 8, 
-        alignItems: "center"
-    },
-    linkDisabled: { 
-        opacity: 0.4
-    },
-    linkText: { 
-        fontSize: 14, 
-        textDecorationLine: "underline"
-    },
-    saved: { 
-        marginTop: 12, 
-        fontSize: 12, 
-        textAlign: "center", 
-        color: "#555" 
-    }
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+  },
+
+  screen: {
+    flex: 1,
+    backgroundColor: COLORS.offWhite,
+  },
+
+  header: {
+    height: 72,
+    paddingHorizontal: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.midGray,
+    backgroundColor: COLORS.offWhite,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  headerTitle: {
+    color: COLORS.blue,
+    fontSize: 24,
+    fontWeight: "700",
+  },
+
+  headerPlaceholder: {
+    width: 44,
+  },
+
+  content: {
+    paddingHorizontal: 18,
+    paddingBottom: 35,
+  },
+
+  infoCard: {
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: COLORS.span,
+    backgroundColor: COLORS.lightBlue,
+    padding: 13,
+    flexDirection: "row",
+    marginBottom: 24,
+  },
+
+  infoContent: {
+    flex: 1,
+    marginLeft: 9,
+  },
+
+  infoText: {
+    color: COLORS.blue,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+
+  infoTextBottom: {
+    color: COLORS.blue,
+    fontSize: 15,
+    lineHeight: 22,
+    marginTop: 18,
+  },
+
+  settingRow: {
+    minHeight: 58,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  settingLabel: {
+    flexShrink: 1,
+    color: COLORS.blue,
+    fontSize: 15,
+    fontWeight: "700",
+    marginRight: 10,
+  },
+
+  retentionRow: {
+    minHeight: 54,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+
+  retentionValue: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  retentionText: {
+    color: COLORS.blue,
+    fontSize: 15,
+    marginRight: 5,
+  },
+
+  recordButton: {
+    minHeight: 54,
+    borderRadius: 9,
+    backgroundColor: COLORS.blue,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 10,
+    marginBottom: 10,
+  },
+
+  recordButtonActive: {
+    backgroundColor: COLORS.red,
+  },
+
+  recordButtonText: {
+    color: COLORS.offWhite,
+    fontSize: 16,
+    fontWeight: "700",
+    marginLeft: 8,
+  },
+
+  recordingStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+  },
+
+  recordingDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: COLORS.red,
+    marginRight: 7,
+  },
+
+  recordingStatusText: {
+    color: COLORS.red,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+
+  divider: {
+    height: 1,
+    backgroundColor: COLORS.midGray,
+    marginTop: 5,
+    marginBottom: 17,
+  },
+
+  sectionTitle: {
+    color: COLORS.blue,
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 12,
+  },
+
+  recordingCard: {
+    minHeight: 80,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.midGray,
+    backgroundColor: COLORS.offWhite,
+    padding: 9,
+    marginBottom: 10,
+  },
+
+  recordingTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 11,
+  },
+
+  recordingId: {
+    backgroundColor: COLORS.blue,
+    borderRadius: 5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+
+  recordingIdText: {
+    color: COLORS.offWhite,
+    fontSize: 12,
+  },
+
+  recordingDate: {
+    color: COLORS.span,
+    fontSize: 12,
+  },
+
+  recordingBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  duration: {
+    width: 66,
+    color: COLORS.blue,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+
+  playButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: COLORS.blue,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 9,
+  },
+
+  waveform: {
+    flex: 1,
+    height: 34,
+    flexDirection: "row",
+    alignItems: "center",
+    overflow: "hidden",
+  },
+
+  waveBar: {
+    width: 2,
+    backgroundColor: COLORS.blue,
+    marginRight: 2,
+    borderRadius: 1,
+  },
+
+  menuButton: {
+    width: 30,
+    height: 36,
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 55,
+    paddingHorizontal: 25,
+  },
+
+  emptyTitle: {
+    color: COLORS.blue,
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 12,
+  },
+
+  emptyText: {
+    color: COLORS.span,
+    fontSize: 14,
+    marginTop: 5,
+    textAlign: "center",
+  },
 });
