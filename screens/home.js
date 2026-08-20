@@ -116,17 +116,7 @@ useFocusEffect(
 
   const startLocationSharing = async () => {
   try {
-    const { status } =
-      await Location.requestForegroundPermissionsAsync();
-
-    if (status !== "granted") {
-      Alert.alert(
-        "Location permission needed",
-        "Heira needs access to your location to share it."
-      );
-      return;
-    }
-
+    // 1. Check logged-in user
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -139,6 +129,62 @@ useFocusEffect(
       return;
     }
 
+    // 2. Get emergency contacts FIRST
+    const { data: emergencyContacts, error: contactsError } =
+      await supabase
+        .from("emergency_contacts")
+        .select("id, name, phone_number")
+        .eq("user_id", session.user.id);
+
+    if (contactsError) {
+      console.log(
+        "Error fetching emergency contacts:",
+        contactsError
+      );
+
+      Alert.alert(
+        "Something went wrong",
+        "Your emergency contacts could not be loaded."
+      );
+
+      return;
+    }
+
+    if (!emergencyContacts || emergencyContacts.length === 0) {
+      Alert.alert(
+        "No emergency contacts",
+        "Add at least one emergency contact before sharing your location."
+      );
+
+      return;
+    }
+
+    // 3. Request location permission
+    const { status } =
+      await Location.requestForegroundPermissionsAsync();
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Location permission needed",
+        "Heira needs access to your location to share it."
+      );
+
+      return;
+    }
+
+    // 4. Check if SMS is available
+    const isSmsAvailable = await SMS.isAvailableAsync();
+
+    if (!isSmsAvailable) {
+      Alert.alert(
+        "SMS unavailable",
+        "SMS is not available on this device."
+      );
+
+      return;
+    }
+
+    // 5. Get current location
     const currentLocation =
       await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
@@ -147,11 +193,13 @@ useFocusEffect(
     const { latitude, longitude } =
       currentLocation.coords;
 
+    // 6. Create unique share token
     const shareToken =
       `${Date.now()}-${Math.random()
         .toString(36)
         .substring(2, 10)}`;
 
+    // 7. Create location share in Supabase
     const { data, error } = await supabase
       .from("location_shares")
       .insert({
@@ -174,6 +222,42 @@ useFocusEffect(
 
     console.log("Location share created:", data);
 
+    // 8. Create share URL
+    const shareUrl =
+      `https://heira-liart.vercel.app/?locationShare=${shareToken}`;
+
+    // 9. Get all phone numbers
+    const phoneNumbers = emergencyContacts
+      .map((contact) => contact.phone_number)
+      .filter(Boolean);
+
+    if (phoneNumbers.length === 0) {
+      Alert.alert(
+        "No phone numbers",
+        "Your emergency contacts do not have a phone number."
+      );
+
+      await supabase
+        .from("location_shares")
+        .update({
+          is_active: false,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", data.id);
+
+      setLocationShareId(null);
+      setIsSharingLocation(false);
+
+      return;
+    }
+
+    // 10. Open SMS composer
+    await SMS.sendSMSAsync(
+      phoneNumbers,
+      `I'm sharing my live location with you through Heira. Follow my live location here: ${shareUrl}`
+    );
+
+    // 11. Start watching live location
     locationWatcherRef.current =
       await Location.watchPositionAsync(
         {
@@ -213,18 +297,24 @@ useFocusEffect(
         }
       );
   } catch (error) {
-    console.log(
-      "Start location sharing error:",
-      error
-    );
+  console.log(
+    "START LOCATION SHARING ERROR:",
+    error
+  );
 
-    setIsSharingLocation(false);
+  console.log(
+    "ERROR MESSAGE:",
+    error?.message
+  );
 
-    Alert.alert(
-      "Something went wrong",
+  setIsSharingLocation(false);
+
+  Alert.alert(
+    "Something went wrong",
+    error?.message ||
       "Your location could not be shared."
-    );
-  }
+  );
+}
 };
 
   const toggleAlarm = async () => {

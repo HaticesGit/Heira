@@ -1,10 +1,9 @@
 import React from "react";
-import { Text } from "react-native";
+import { Platform } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
-
 import { COLORS } from "./constants/colors";
 import HomeScreen from "./screens/home";
 import ProfileScreen from "./screens/profile";
@@ -30,9 +29,31 @@ import VerifyIdentityScreen from "./screens/verifyIdentityScreen";
 import ParticipantsScreen from "./screens/participantsScreen";
 import FollowListScreen from "./screens/followListScreen";
 import AccountSettingsScreen from "./screens/accountSettings";
+import SharedLocationScreen from "./screens/SharedLocationScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
+
+function getLocationShareToken() {
+  // Only check browser URL on web
+  if (Platform.OS !== "web") {
+    return null;
+  }
+
+  if (
+    typeof window === "undefined" ||
+    !window.location
+  ) {
+    return null;
+  }
+
+  const params = new URLSearchParams(
+    window.location.search
+  );
+
+  return params.get("locationShare");
+}
+
 
 function MainTabs() {
   return (
@@ -42,11 +63,13 @@ function MainTabs() {
         headerShown: false,
         tabBarActiveTintColor: COLORS.blue,
         tabBarInactiveTintColor: COLORS.span,
+
         tabBarStyle: {
           height: 65,
           paddingTop: 7,
           paddingBottom: 7,
         },
+
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: "600",
@@ -58,8 +81,16 @@ function MainTabs() {
         component={HomeScreen}
         options={{
           title: "Home",
-          tabBarIcon: ({ color, size }) => (
-          <Ionicons name="home-outline" size={size} color={color} />
+
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
+            <Ionicons
+              name="home-outline"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -69,12 +100,16 @@ function MainTabs() {
         component={MapScreen}
         options={{
           title: "Map",
-          tabBarIcon: ({ color, size }) => (
-          <Ionicons
-            name="location-outline"
-            size={size}
-            color={color}
-          />
+
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
+            <Ionicons
+              name="location-outline"
+              size={size}
+              color={color}
+            />
           ),
         }}
       />
@@ -84,27 +119,53 @@ function MainTabs() {
         component={CommunityScreen}
         options={{
           title: "Community",
-          tabBarIcon: ({ color, size }) => (
-        <Ionicons
-          name="people-outline"
-          size={size}
-          color={color}
-        />
-      ),
+
+          tabBarIcon: ({
+            color,
+            size,
+          }) => (
+            <Ionicons
+              name="people-outline"
+              size={size}
+              color={color}
+            />
+          ),
         }}
       />
     </Tab.Navigator>
   );
 }
 
+
 export default function App() {
+  const locationShareToken =
+    getLocationShareToken();
+
+  // -----------------------------------
+  // PUBLIC SHARED LOCATION LINK
+  // -----------------------------------
+
+  if (locationShareToken) {
+    return (
+      <SharedLocationScreen
+        shareToken={locationShareToken}
+      />
+    );
+  }
+
+  // -----------------------------------
+  // NORMAL HEIRA APP
+  // -----------------------------------
+
   return (
     <NavigationContainer>
       <Stack.Navigator>
         <Stack.Screen
           name="MainTabs"
           component={MainTabs}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
 
         <Stack.Screen
@@ -114,105 +175,167 @@ export default function App() {
             title: "Voice Recording",
           }}
         />
+
         <Stack.Screen
           name="Settings"
           component={SettingsScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="Profile"
           component={ProfileScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="EmergencyContacts"
-          component={EmergencyContactsScreen}
-          options={{ headerShown: false }}
+          component={
+            EmergencyContactsScreen
+          }
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="AddContact"
           component={AddContactScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="EditContact"
           component={EditContactScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="CreateMeetup"
           component={CreateMeetupScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="MeetupDetail"
           component={MeetupDetailScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="Comments"
           component={CommentsScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="Search"
           component={SearchScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="UserProfile"
           component={UserProfileScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="SafespaceDetail"
           component={SafespaceDetailScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="SafespaceReviews"
           component={SafespaceReviewsScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="AddReview"
           component={AddReviewScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="Login"
           component={LoginScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="SignUp"
           component={SignUpScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="VerifySafespace"
           component={VerifySafespaceScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="VerifyIdentity"
           component={VerifyIdentityScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="Participants"
           component={ParticipantsScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="FollowList"
           component={FollowListScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
+
         <Stack.Screen
           name="AccountSettings"
           component={AccountSettingsScreen}
-          options={{ headerShown: false }}
+          options={{
+            headerShown: false,
+          }}
         />
       </Stack.Navigator>
     </NavigationContainer>
