@@ -71,6 +71,16 @@ const generateUsername = () => {
   return `${adjective}${animal}`;
 };
 
+const showFeedback = (title, message) => {
+  if (
+    typeof window !== "undefined"
+  ) {
+    window.alert(`${title}\n\n${message}`);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 export default function SignUpScreen({ navigation }) {
   const [username, setUsername] = useState(generateUsername());
   const [email, setEmail] = useState("");
@@ -114,15 +124,15 @@ export default function SignUpScreen({ navigation }) {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail || !password) {
-      Alert.alert(
+      showFeedback(
         "Missing information",
         "Please enter your email and password."
-      );
+      );  
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert(
+      showFeedback(
         "Password too short",
         "Your password must contain at least 6 characters."
       );
@@ -130,7 +140,7 @@ export default function SignUpScreen({ navigation }) {
     }
 
     if (!acceptedTerms) {
-      Alert.alert(
+      showFeedback(
         "Terms required",
         "Please agree to the Terms of Use and Privacy Policy."
       );
@@ -152,38 +162,55 @@ export default function SignUpScreen({ navigation }) {
     setLoading(false);
 
     if (error) {
-      Alert.alert(
-        "Could not create account",
-        error.message
-      );
-      return;
-    }
+        showFeedback(
+          "Could not create account",
+          error.message
+        );
+
+        return;
+      }
 
     if (!data.session) {
-      Alert.alert(
-        "Check your email",
-        "We sent you a confirmation email. Confirm your email before signing in.",
-        [
-          {
-            text: "OK",
-            onPress: () => navigation.navigate("Login"),
-          },
-        ]
-      );
+  if (typeof window !== "undefined") {
+    window.alert(
+      "Check your email\n\nWe sent you a confirmation email. Confirm your email before signing in."
+    );
 
-      return;
-    }
-
+    navigation.navigate("Login");
+  } else {
     Alert.alert(
-      "Account created",
-      `Welcome to Heira, ${username}!`,
+      "Check your email",
+      "We sent you a confirmation email. Confirm your email before signing in.",
       [
         {
-          text: "Continue",
-          onPress: () => navigation.goBack(),
+          text: "OK",
+          onPress: () => navigation.navigate("Login"),
         },
       ]
     );
+  }
+
+  return;
+}
+
+    if (typeof window !== "undefined") {
+  window.alert(
+    `Account created\n\nWelcome to Heira, ${username}!`
+  );
+
+  navigation.goBack();
+} else {
+  Alert.alert(
+    "Account created",
+    `Welcome to Heira, ${username}!`,
+    [
+      {
+        text: "Continue",
+        onPress: () => navigation.goBack(),
+      },
+    ]
+  );
+}
   };
 
   return (
