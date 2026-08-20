@@ -1,603 +1,1353 @@
-import React, { useEffect, useRef, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert, Linking, Image, Platform } from "react-native";
+import React, {
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Linking,
+  Image,
+  Platform,
+} from "react-native";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Audio } from "expo-av";
 import { useFocusEffect } from "@react-navigation/native";
+
 import { supabase } from "../lib/supabase";
 import MeetupCard from "../components/MeetUpCard";
 import { COLORS } from "../constants/colors";
+
 import * as Location from "expo-location";
 import * as SMS from "expo-sms";
 
-export default function HomeScreen({ navigation }) {
-  const alarmSoundRef = useRef(null);
-  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
-  const [meetups, setMeetups] = useState([]);
-  const [currentUserImage, setCurrentUserImage] = useState(null);
-  const locationWatcherRef = useRef(null);
+export default function HomeScreen({
+  navigation,
+}) {
+  const alarmSoundRef =
+    useRef(null);
 
-const [isSharingLocation, setIsSharingLocation] = useState(false);
-const [locationShareId, setLocationShareId] = useState(null);
+  const locationWatcherRef =
+    useRef(null);
+
+  const [isAlarmPlaying, setIsAlarmPlaying] =
+    useState(false);
+
+  const [meetups, setMeetups] =
+    useState([]);
+
+  const [
+    currentUserImage,
+    setCurrentUserImage,
+  ] = useState(null);
+
+  const [
+    isSharingLocation,
+    setIsSharingLocation,
+  ] = useState(false);
+
+  const [
+    locationShareId,
+    setLocationShareId,
+  ] = useState(null);
+
   const formatDate = (date) => {
-  if (!date) return "";
+    if (!date) return "";
 
-  const [year, month, day] = date.split("-");
+    const [
+      year,
+      month,
+      day,
+    ] = date.split("-");
 
-  return `${day}/${month}/${year.slice(-2)}`;
-};
+    return `${day}/${month}/${year.slice(
+      -2
+    )}`;
+  };
 
-const formatTime = (time) => {
-  if (!time) return "";
+  const formatTime = (time) => {
+    if (!time) return "";
 
-  return time.slice(0, 5);
-};
+    return time.slice(0, 5);
+  };
 
-const fetchFutureMeetups = async () => {
-  try {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  // =========================================================
+  // FUTURE / JOINED MEETUPS
+  // =========================================================
 
-    if (!session?.user) {
-      console.log("No logged in user");
+  const fetchFutureMeetups =
+    async () => {
+      try {
+        const {
+          data: { session },
+        } =
+          await supabase.auth.getSession();
 
-      setMeetups([]);
-      setCurrentUserImage(null);
-      return;
-    }
+        if (!session?.user) {
+          console.log(
+            "No logged in user"
+          );
 
-    console.log(
-      "HOME USER ID:",
-      session.user.id
-    );
+          setMeetups([]);
+          setCurrentUserImage(
+            null
+          );
 
-    // PROFILE IMAGE
-    const {
-      data: profileData,
-      error: profileError,
-    } = await supabase
-      .from("profiles")
-      .select("profileIMG_url")
-      .eq("id", session.user.id)
-      .single();
-
-    if (profileError) {
-      console.log(
-        "Profile image error:",
-        profileError
-      );
-    }
-
-    setCurrentUserImage(
-      profileData?.profileIMG_url || null
-    );
-
-    // GET ALL MEETUPS THIS USER JOINED
-    const {
-      data: participantData,
-      error: participantError,
-    } = await supabase
-      .from("meetup_participants")
-      .select("meetup_id")
-      .eq("user_id", session.user.id);
-
-    if (participantError) {
-      console.log(
-        "Error fetching joined meetups:",
-        participantError
-      );
-
-      setMeetups([]);
-      return;
-    }
-
-    console.log(
-      "JOINED MEETUPS:",
-      participantData
-    );
-
-    const meetupIds = [
-      ...new Set(
-        (participantData || [])
-          .map(
-            (participant) =>
-              participant.meetup_id
-          )
-          .filter(Boolean)
-      ),
-    ];
-
-    console.log(
-      "MEETUP IDS:",
-      meetupIds
-    );
-
-    if (meetupIds.length === 0) {
-      setMeetups([]);
-      return;
-    }
-
-    // GET THE ACTUAL MEETUPS
-    const {
-      data: meetupData,
-      error: meetupError,
-    } = await supabase
-      .from("meetups")
-      .select("*")
-      .in("id", meetupIds)
-      .order("meetup_date", {
-        ascending: true,
-      });
-
-    if (meetupError) {
-      console.log(
-        "Error fetching meetup details:",
-        meetupError
-      );
-
-      setMeetups([]);
-      return;
-    }
-
-    console.log(
-      "FOUND MEETUPS:",
-      meetupData
-    );
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const futureMeetups =
-      (meetupData || []).filter(
-        (meetup) => {
-          if (!meetup.meetup_date) {
-            return true;
-          }
-
-          const meetupDate =
-            new Date(
-              `${meetup.meetup_date}T00:00:00`
-            );
-
-          return meetupDate >= today;
+          return;
         }
-      );
 
-    const formattedMeetups =
-      futureMeetups.map((meetup) => ({
-        id: meetup.id.toString(),
-        creatorId:
-          meetup.creator_id,
-        username:
-          meetup.username,
-        title:
-          meetup.title ||
-          meetup.location,
-        location:
-          meetup.location,
-        date: formatDate(
-          meetup.meetup_date
-        ),
-        time: formatTime(
-          meetup.meetup_time
-        ),
-        category:
-          meetup.category,
-      }));
+        console.log(
+          "HOME USER ID:",
+          session.user.id
+        );
 
-    console.log(
-      "FINAL HOME MEETUPS:",
-      formattedMeetups
-    );
+        // Profile image
+        const {
+          data:
+            profileData,
+          error:
+            profileError,
+        } = await supabase
+          .from("profiles")
+          .select(
+            "profileIMG_url"
+          )
+          .eq(
+            "id",
+            session.user.id
+          )
+          .single();
 
-    setMeetups(formattedMeetups);
-  } catch (error) {
-    console.log(
-      "Unexpected future meetup error:",
-      error
-    );
+        if (profileError) {
+          console.log(
+            "Profile image error:",
+            profileError
+          );
+        }
 
-    setMeetups([]);
-  }
-};
-useFocusEffect(
-  React.useCallback(() => {
-    fetchFutureMeetups();
-  }, [])
-);
+        setCurrentUserImage(
+          profileData?.profileIMG_url ||
+            null
+        );
+
+        // Get joined meetup IDs
+        const {
+          data:
+            participantData,
+          error:
+            participantError,
+        } = await supabase
+          .from(
+            "meetup_participants"
+          )
+          .select("meetup_id")
+          .eq(
+            "user_id",
+            session.user.id
+          );
+
+        if (
+          participantError
+        ) {
+          console.log(
+            "Error fetching joined meetups:",
+            participantError
+          );
+
+          setMeetups([]);
+
+          return;
+        }
+
+        console.log(
+          "JOINED MEETUPS:",
+          participantData
+        );
+
+        const meetupIds = [
+          ...new Set(
+            (
+              participantData ||
+              []
+            )
+              .map(
+                (
+                  participant
+                ) =>
+                  participant.meetup_id
+              )
+              .filter(Boolean)
+          ),
+        ];
+
+        console.log(
+          "MEETUP IDS:",
+          meetupIds
+        );
+
+        if (
+          meetupIds.length ===
+          0
+        ) {
+          setMeetups([]);
+
+          return;
+        }
+
+        // Get actual meetup rows
+        const {
+          data:
+            meetupData,
+          error:
+            meetupError,
+        } = await supabase
+          .from("meetups")
+          .select("*")
+          .in(
+            "id",
+            meetupIds
+          )
+          .order(
+            "meetup_date",
+            {
+              ascending: true,
+            }
+          );
+
+        if (
+          meetupError
+        ) {
+          console.log(
+            "Error fetching meetup details:",
+            meetupError
+          );
+
+          setMeetups([]);
+
+          return;
+        }
+
+        console.log(
+          "FOUND MEETUPS:",
+          meetupData
+        );
+
+        /*
+          IMPORTANT:
+          We do NOT filter them again here.
+          That was what made joined
+          meetups disappear before.
+        */
+
+        const formattedMeetups =
+          (
+            meetupData ||
+            []
+          ).map(
+            (meetup) => ({
+              id: meetup.id.toString(),
+
+              creatorId:
+                meetup.creator_id,
+
+              username:
+                meetup.username,
+
+              title:
+                meetup.title ||
+                meetup.location,
+
+              location:
+                meetup.location,
+
+              date: formatDate(
+                meetup.meetup_date
+              ),
+
+              time: formatTime(
+                meetup.meetup_time
+              ),
+
+              category:
+                meetup.category,
+            })
+          );
+
+        console.log(
+          "FINAL HOME MEETUPS:",
+          formattedMeetups
+        );
+
+        setMeetups(
+          formattedMeetups
+        );
+      } catch (error) {
+        console.log(
+          "Unexpected future meetup error:",
+          error
+        );
+
+        setMeetups([]);
+      }
+    };
+
+  useFocusEffect(
+    React.useCallback(
+      () => {
+        fetchFutureMeetups();
+      },
+      []
+    )
+  );
+
+  // =========================================================
+  // CLEANUP
+  // =========================================================
 
   useEffect(() => {
     return () => {
-      if (alarmSoundRef.current) {
+      if (
+        alarmSoundRef.current
+      ) {
         alarmSoundRef.current.unloadAsync();
-        alarmSoundRef.current = null;
+
+        alarmSoundRef.current =
+          null;
+      }
+
+      /*
+        Stop native location watcher
+      */
+
+      if (
+        Platform.OS !==
+          "web" &&
+        locationWatcherRef.current
+      ) {
+        try {
+          locationWatcherRef.current.remove();
+        } catch {
+          // Ignore cleanup error
+        }
+
+        locationWatcherRef.current =
+          null;
+      }
+
+      /*
+        Stop browser geolocation watcher
+      */
+
+      if (
+        Platform.OS ===
+          "web" &&
+        locationWatcherRef.current !==
+          null &&
+        typeof navigator !==
+          "undefined" &&
+        navigator.geolocation
+      ) {
+        navigator.geolocation.clearWatch(
+          locationWatcherRef.current
+        );
+
+        locationWatcherRef.current =
+          null;
       }
     };
   }, []);
 
-  const startLocationSharing = async () => {
-  try {
-    // 1. Check logged-in user
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
+  // =========================================================
+  // SHARE LOCATION
+  // =========================================================
 
-    if (!session?.user) {
-      Alert.alert(
-        "Not logged in",
-        "You need to be logged in to share your location."
-      );
-      return;
-    }
+  const startLocationSharing =
+    async () => {
+      try {
+        const {
+          data: { session },
+        } =
+          await supabase.auth.getSession();
 
-    // 2. Get emergency contacts FIRST
-    const { data: emergencyContacts, error: contactsError } =
-      await supabase
-        .from("emergency_contacts")
-        .select("id, name, phone_number")
-        .eq("user_id", session.user.id);
-
-    if (contactsError) {
-      console.log(
-        "Error fetching emergency contacts:",
-        contactsError
-      );
-
-      Alert.alert(
-        "Something went wrong",
-        "Your emergency contacts could not be loaded."
-      );
-
-      return;
-    }
-
-    if (!emergencyContacts || emergencyContacts.length === 0) {
-      Alert.alert(
-        "No emergency contacts",
-        "Add at least one emergency contact before sharing your location."
-      );
-
-      return;
-    }
-
-    // 3. Request location permission
-    const { status } =
-      await Location.requestForegroundPermissionsAsync();
-
-    if (status !== "granted") {
-      Alert.alert(
-        "Location permission needed",
-        "Heira needs access to your location to share it."
-      );
-
-      return;
-    }
-
-    // 4. Check if SMS is available
-    if (Platform.OS !== "web") {
-  const isSmsAvailable =
-    await SMS.isAvailableAsync();
-
-  if (!isSmsAvailable) {
-    Alert.alert(
-      "SMS unavailable",
-      "SMS is not available on this device."
-    );
-
-    return;
-  }
-}
-
-    // 5. Get current location
-    const currentLocation =
-      await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-    const { latitude, longitude } =
-      currentLocation.coords;
-
-    // 6. Create unique share token
-    const shareToken =
-      `${Date.now()}-${Math.random()
-        .toString(36)
-        .substring(2, 10)}`;
-
-    // 7. Create location share in Supabase
-    const { data, error } = await supabase
-      .from("location_shares")
-      .insert({
-        user_id: session.user.id,
-        share_token: shareToken,
-        latitude,
-        longitude,
-        is_active: true,
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (error) {
-      throw error;
-    }
-
-    setLocationShareId(data.id);
-    setIsSharingLocation(true);
-
-    console.log("Location share created:", data);
-
-    // 8. Create share URL
-    const shareUrl =
-      `https://heira-liart.vercel.app/?locationShare=${shareToken}`;
-
-    // 9. Get all phone numbers
-    const phoneNumbers = emergencyContacts
-      .map((contact) => contact.phone_number)
-      .filter(Boolean);
-
-    if (phoneNumbers.length === 0) {
-      Alert.alert(
-        "No phone numbers",
-        "Your emergency contacts do not have a phone number."
-      );
-
-      await supabase
-        .from("location_shares")
-        .update({
-          is_active: false,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", data.id);
-
-      setLocationShareId(null);
-      setIsSharingLocation(false);
-
-      return;
-    }
-
-    // 10. Open SMS composer
-    const message =
-  `I'm sharing my live location with you through Heira. ` +
-  `Follow my live location here: ${shareUrl}`;
-
-if (Platform.OS === "web") {
-  const phoneNumber =
-    phoneNumbers[0];
-
-  const smsUrl =
-    `sms:${phoneNumber}?body=${encodeURIComponent(
-      message
-    )}`;
-
-  if (typeof window !== "undefined") {
-    window.location.href = smsUrl;
-  }
-} else {
-  await SMS.sendSMSAsync(
-    phoneNumbers,
-    message
-  );
-}
-
-    // 11. Start watching live location
-    locationWatcherRef.current =
-      await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        async (location) => {
-          const {
-            latitude,
-            longitude,
-          } = location.coords;
-
-          console.log(
-            "Updated location:",
-            latitude,
-            longitude
-          );
-
-          const { error: updateError } =
-            await supabase
-              .from("location_shares")
-              .update({
-                latitude,
-                longitude,
-                updated_at:
-                  new Date().toISOString(),
-              })
-              .eq("id", data.id);
-
-          if (updateError) {
-            console.log(
-              "Location update error:",
-              updateError
+        if (
+          !session?.user
+        ) {
+          if (
+            Platform.OS ===
+              "web" &&
+            typeof window !==
+              "undefined"
+          ) {
+            window.alert(
+              "You need to be logged in to share your location."
+            );
+          } else {
+            Alert.alert(
+              "Not logged in",
+              "You need to be logged in to share your location."
             );
           }
+
+          return;
         }
-      );
-  } catch (error) {
-  console.log(
-    "START LOCATION SHARING ERROR:",
-    error
-  );
 
-  console.log(
-    "ERROR MESSAGE:",
-    error?.message
-  );
+        // -----------------------------------------
+        // Emergency contacts
+        // -----------------------------------------
 
-  setIsSharingLocation(false);
+        const {
+          data:
+            emergencyContacts,
+          error:
+            contactsError,
+        } = await supabase
+          .from(
+            "emergency_contacts"
+          )
+          .select(
+            "id, name, phone_number"
+          )
+          .eq(
+            "user_id",
+            session.user.id
+          );
 
-  Alert.alert(
-    "Something went wrong",
-    error?.message ||
-      "Your location could not be shared."
-  );
-}
-};
+        if (
+          contactsError
+        ) {
+          throw contactsError;
+        }
 
-  const toggleAlarm = async () => {
-    try {
-      if (isAlarmPlaying && alarmSoundRef.current) {
-        await alarmSoundRef.current.stopAsync();
-        await alarmSoundRef.current.unloadAsync();
+        if (
+          !emergencyContacts ||
+          emergencyContacts.length ===
+            0
+        ) {
+          if (
+            Platform.OS ===
+              "web" &&
+            typeof window !==
+              "undefined"
+          ) {
+            window.alert(
+              "Add at least one emergency contact before sharing your location."
+            );
+          } else {
+            Alert.alert(
+              "No emergency contacts",
+              "Add at least one emergency contact before sharing your location."
+            );
+          }
 
-        alarmSoundRef.current = null;
-        setIsAlarmPlaying(false);
+          return;
+        }
 
-        return;
+        const phoneNumbers =
+          emergencyContacts
+            .map(
+              (
+                contact
+              ) =>
+                contact.phone_number
+            )
+            .filter(Boolean);
+
+        if (
+          phoneNumbers.length ===
+          0
+        ) {
+          if (
+            Platform.OS ===
+              "web" &&
+            typeof window !==
+              "undefined"
+          ) {
+            window.alert(
+              "Your emergency contacts do not have a phone number."
+            );
+          } else {
+            Alert.alert(
+              "No phone numbers",
+              "Your emergency contacts do not have a phone number."
+            );
+          }
+
+          return;
+        }
+
+        let latitude;
+        let longitude;
+
+        // =====================================================
+        // WEB LOCATION
+        // =====================================================
+
+        if (
+          Platform.OS ===
+          "web"
+        ) {
+          if (
+            typeof navigator ===
+              "undefined" ||
+            !navigator.geolocation
+          ) {
+            window.alert(
+              "Location is not supported by this browser."
+            );
+
+            return;
+          }
+
+          const browserLocation =
+            await new Promise(
+              (
+                resolve,
+                reject
+              ) => {
+                navigator.geolocation.getCurrentPosition(
+                  resolve,
+                  reject,
+                  {
+                    enableHighAccuracy:
+                      true,
+
+                    timeout:
+                      15000,
+
+                    maximumAge:
+                      0,
+                  }
+                );
+              }
+            );
+
+          latitude =
+            browserLocation.coords.latitude;
+
+          longitude =
+            browserLocation.coords.longitude;
+        }
+
+        // =====================================================
+        // NATIVE LOCATION
+        // =====================================================
+
+        else {
+          const {
+            status,
+          } =
+            await Location.requestForegroundPermissionsAsync();
+
+          if (
+            status !==
+            "granted"
+          ) {
+            Alert.alert(
+              "Location permission needed",
+              "Heira needs access to your location to share it."
+            );
+
+            return;
+          }
+
+          const isSmsAvailable =
+            await SMS.isAvailableAsync();
+
+          if (
+            !isSmsAvailable
+          ) {
+            Alert.alert(
+              "SMS unavailable",
+              "SMS is not available on this device."
+            );
+
+            return;
+          }
+
+          const currentLocation =
+            await Location.getCurrentPositionAsync(
+              {
+                accuracy:
+                  Location
+                    .Accuracy
+                    .High,
+              }
+            );
+
+          latitude =
+            currentLocation.coords.latitude;
+
+          longitude =
+            currentLocation.coords.longitude;
+        }
+
+        // =====================================================
+        // CREATE SHARE TOKEN
+        // =====================================================
+
+        const shareToken =
+          `${Date.now()}-${Math.random()
+            .toString(36)
+            .substring(
+              2,
+              10
+            )}`;
+
+        // =====================================================
+        // CREATE DATABASE ROW
+        // =====================================================
+
+        const {
+          data,
+          error,
+        } = await supabase
+          .from(
+            "location_shares"
+          )
+          .insert({
+            user_id:
+              session.user.id,
+
+            share_token:
+              shareToken,
+
+            latitude,
+
+            longitude,
+
+            is_active:
+              true,
+
+            updated_at:
+              new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (error) {
+          throw error;
+        }
+
+        console.log(
+          "Location share created:",
+          data
+        );
+
+        setLocationShareId(
+          data.id
+        );
+
+        setIsSharingLocation(
+          true
+        );
+
+        // =====================================================
+        // SHARE URL
+        // =====================================================
+
+        const shareUrl =
+          `https://heira-liart.vercel.app/?locationShare=${shareToken}`;
+
+        const message =
+          `I'm sharing my live location with you through Heira. ` +
+          `Follow my live location here: ${shareUrl}`;
+
+        // =====================================================
+        // WEB LIVE LOCATION
+        // =====================================================
+
+        if (
+          Platform.OS ===
+          "web"
+        ) {
+          const watchId =
+            navigator.geolocation.watchPosition(
+              async (
+                position
+              ) => {
+                const newLatitude =
+                  position.coords.latitude;
+
+                const newLongitude =
+                  position.coords.longitude;
+
+                console.log(
+                  "WEB LIVE LOCATION:",
+                  newLatitude,
+                  newLongitude
+                );
+
+                const {
+                  error:
+                    updateError,
+                } =
+                  await supabase
+                    .from(
+                      "location_shares"
+                    )
+                    .update({
+                      latitude:
+                        newLatitude,
+
+                      longitude:
+                        newLongitude,
+
+                      updated_at:
+                        new Date().toISOString(),
+                    })
+                    .eq(
+                      "id",
+                      data.id
+                    );
+
+                if (
+                  updateError
+                ) {
+                  console.log(
+                    "Location update error:",
+                    updateError
+                  );
+                }
+              },
+
+              (
+                error
+              ) => {
+                console.log(
+                  "Browser geolocation watch error:",
+                  error
+                );
+              },
+
+              {
+                enableHighAccuracy:
+                  true,
+
+                maximumAge:
+                  0,
+
+                timeout:
+                  15000,
+              }
+            );
+
+          locationWatcherRef.current =
+            watchId;
+
+          // -----------------------------------------
+          // Open SMS composer on web
+          // -----------------------------------------
+
+          const phoneNumber =
+            phoneNumbers[0];
+
+          const smsUrl =
+            `sms:${phoneNumber}?body=${encodeURIComponent(
+              message
+            )}`;
+
+          if (
+            typeof window !==
+            "undefined"
+          ) {
+            window.location.href =
+              smsUrl;
+          }
+        }
+
+        // =====================================================
+        // NATIVE LIVE LOCATION
+        // =====================================================
+
+        else {
+          locationWatcherRef.current =
+            await Location.watchPositionAsync(
+              {
+                accuracy:
+                  Location
+                    .Accuracy
+                    .BestForNavigation,
+
+                timeInterval:
+                  3000,
+
+                distanceInterval:
+                  2,
+              },
+
+              async (
+                location
+              ) => {
+                const {
+                  latitude:
+                    newLatitude,
+
+                  longitude:
+                    newLongitude,
+                } =
+                  location.coords;
+
+                console.log(
+                  "NATIVE LIVE LOCATION:",
+                  newLatitude,
+                  newLongitude
+                );
+
+                const {
+                  error:
+                    updateError,
+                } =
+                  await supabase
+                    .from(
+                      "location_shares"
+                    )
+                    .update({
+                      latitude:
+                        newLatitude,
+
+                      longitude:
+                        newLongitude,
+
+                      updated_at:
+                        new Date().toISOString(),
+                    })
+                    .eq(
+                      "id",
+                      data.id
+                    );
+
+                if (
+                  updateError
+                ) {
+                  console.log(
+                    "Location update error:",
+                    updateError
+                  );
+                }
+              }
+            );
+
+          await SMS.sendSMSAsync(
+            phoneNumbers,
+            message
+          );
+        }
+      } catch (error) {
+        console.log(
+          "START LOCATION SHARING ERROR:",
+          error
+        );
+
+        console.log(
+          "ERROR MESSAGE:",
+          error?.message
+        );
+
+        setIsSharingLocation(
+          false
+        );
+
+        setLocationShareId(
+          null
+        );
+
+        if (
+          Platform.OS ===
+            "web" &&
+          typeof window !==
+            "undefined"
+        ) {
+          window.alert(
+            error?.message ||
+              "Your location could not be shared."
+          );
+        } else {
+          Alert.alert(
+            "Something went wrong",
+            error?.message ||
+              "Your location could not be shared."
+          );
+        }
       }
-      
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: true,
-        playThroughEarpieceAndroid: false,
-        staysActiveInBackground: false,
-      });
+    };
 
-      const { sound } = await Audio.Sound.createAsync(
-        require("../assets/sounds/warningAlarm.mp3"),
-        {
-          shouldPlay: false,
-          isLooping: true,
-          volume: 0.25,
-        }
-      );
+  // =========================================================
+  // STOP SHARING LOCATION
+  // =========================================================
 
-      alarmSoundRef.current = sound;
+  const stopLocationSharing =
+    async () => {
+      try {
+        // -----------------------------------------
+        // Stop location watcher
+        // -----------------------------------------
 
-      await sound.setVolumeAsync(0.25);
-      await sound.playAsync();
+        if (
+          Platform.OS ===
+          "web"
+        ) {
+          if (
+            locationWatcherRef.current !==
+              null &&
+            typeof navigator !==
+              "undefined" &&
+            navigator.geolocation
+          ) {
+            navigator.geolocation.clearWatch(
+              locationWatcherRef.current
+            );
 
-      setIsAlarmPlaying(true);
-    } catch (error) {
-      console.log("Alarm sound error:", error);
+            locationWatcherRef.current =
+              null;
+          }
+        } else {
+          if (
+            locationWatcherRef.current
+          ) {
+            locationWatcherRef.current.remove();
 
-      alarmSoundRef.current = null;
-      setIsAlarmPlaying(false);
-
-      Alert.alert(
-        "Alarm error",
-        "The alarm sound could not be played."
-      );
-    }
-  };
-
-  const callEmergencyServices = () => {
-  const confirmCall = async () => {
-    try {
-      if (Platform.OS === "web") {
-        if (typeof window !== "undefined") {
-          window.location.href = "tel:112";
+            locationWatcherRef.current =
+              null;
+          }
         }
 
-        return;
+        // -----------------------------------------
+        // Make share inactive
+        // -----------------------------------------
+
+        if (
+          locationShareId
+        ) {
+          const {
+            error,
+          } = await supabase
+            .from(
+              "location_shares"
+            )
+            .update({
+              is_active:
+                false,
+
+              updated_at:
+                new Date().toISOString(),
+            })
+            .eq(
+              "id",
+              locationShareId
+            );
+
+          if (error) {
+            throw error;
+          }
+        }
+
+        setIsSharingLocation(
+          false
+        );
+
+        setLocationShareId(
+          null
+        );
+
+        if (
+          Platform.OS ===
+            "web" &&
+          typeof window !==
+            "undefined"
+        ) {
+          window.alert(
+            "Your live location is no longer being shared."
+          );
+        } else {
+          Alert.alert(
+            "Location sharing stopped",
+            "Your live location is no longer being shared."
+          );
+        }
+      } catch (error) {
+        console.log(
+          "STOP LOCATION SHARING ERROR:",
+          error
+        );
+
+        if (
+          Platform.OS ===
+            "web" &&
+          typeof window !==
+            "undefined"
+        ) {
+          window.alert(
+            error?.message ||
+              "Location sharing could not be stopped."
+          );
+        } else {
+          Alert.alert(
+            "Something went wrong",
+            error?.message ||
+              "Location sharing could not be stopped."
+          );
+        }
       }
+    };
 
-      await Linking.openURL("tel:112");
-    } catch (error) {
-      console.log(
-        "Emergency call error:",
-        error
-      );
+  // =========================================================
+  // ALARM SIREN
+  // =========================================================
 
-      Alert.alert(
-        "Unable to call",
-        "The phone app could not be opened."
-      );
-    }
-  };
+  const toggleAlarm =
+    async () => {
+      try {
+        if (
+          isAlarmPlaying &&
+          alarmSoundRef.current
+        ) {
+          await alarmSoundRef.current.stopAsync();
 
-  Alert.alert(
-    "Call emergency services",
-    "Are you sure you want to call 112?",
-    [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Call 112",
-        style: "destructive",
-        onPress: confirmCall,
-      },
-    ]
-  );
-};
+          await alarmSoundRef.current.unloadAsync();
+
+          alarmSoundRef.current =
+            null;
+
+          setIsAlarmPlaying(
+            false
+          );
+
+          return;
+        }
+
+        await Audio.setAudioModeAsync(
+          {
+            allowsRecordingIOS:
+              false,
+
+            playsInSilentModeIOS:
+              true,
+
+            shouldDuckAndroid:
+              true,
+
+            playThroughEarpieceAndroid:
+              false,
+
+            staysActiveInBackground:
+              false,
+          }
+        );
+
+        const { sound } =
+          await Audio.Sound.createAsync(
+            require("../assets/sounds/warningAlarm.mp3"),
+            {
+              shouldPlay:
+                false,
+
+              isLooping:
+                true,
+
+              volume:
+                0.25,
+            }
+          );
+
+        alarmSoundRef.current =
+          sound;
+
+        await sound.setVolumeAsync(
+          0.25
+        );
+
+        await sound.playAsync();
+
+        setIsAlarmPlaying(
+          true
+        );
+      } catch (error) {
+        console.log(
+          "Alarm sound error:",
+          error
+        );
+
+        alarmSoundRef.current =
+          null;
+
+        setIsAlarmPlaying(
+          false
+        );
+
+        Alert.alert(
+          "Alarm error",
+          "The alarm sound could not be played."
+        );
+      }
+    };
+
+  // =========================================================
+  // CALL 112
+  // =========================================================
+
+  const callEmergencyServices =
+    async () => {
+      try {
+        // -----------------------------------------
+        // WEB / PWA
+        // -----------------------------------------
+
+        if (
+          Platform.OS ===
+          "web"
+        ) {
+          if (
+            typeof window ===
+            "undefined"
+          ) {
+            return;
+          }
+
+          const confirmed =
+            window.confirm(
+              "Are you sure you want to call emergency services (112)?"
+            );
+
+          if (
+            !confirmed
+          ) {
+            return;
+          }
+
+          window.location.href =
+            "tel:112";
+
+          return;
+        }
+
+        // -----------------------------------------
+        // NATIVE
+        // -----------------------------------------
+
+        Alert.alert(
+          "Call emergency services",
+          "Are you sure you want to call 112?",
+          [
+            {
+              text:
+                "Cancel",
+
+              style:
+                "cancel",
+            },
+
+            {
+              text:
+                "Call 112",
+
+              style:
+                "destructive",
+
+              onPress:
+                async () => {
+                  try {
+                    await Linking.openURL(
+                      "tel:112"
+                    );
+                  } catch (
+                    error
+                  ) {
+                    console.log(
+                      "Emergency call error:",
+                      error
+                    );
+
+                    Alert.alert(
+                      "Unable to call",
+                      "The phone app could not be opened."
+                    );
+                  }
+                },
+            },
+          ]
+        );
+      } catch (error) {
+        console.log(
+          "Emergency call error:",
+          error
+        );
+
+        if (
+          Platform.OS ===
+            "web" &&
+          typeof window !==
+            "undefined"
+        ) {
+          window.alert(
+            "The phone app could not be opened."
+          );
+        }
+      }
+    };
+
+  // =========================================================
+  // UI
+  // =========================================================
+
   return (
-    <SafeAreaView style={styles.safeArea} edges={["top"]}>
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Home</Text>
+    <SafeAreaView
+      style={
+        styles.safeArea
+      }
+      edges={[
+        "top",
+      ]}
+    >
+      <View
+        style={
+          styles.screen
+        }
+      >
+        {/* HEADER */}
+
+        <View
+          style={
+            styles.header
+          }
+        >
+          <Text
+            style={
+              styles.headerTitle
+            }
+          >
+            Home
+          </Text>
 
           <TouchableOpacity
-            style={styles.profileButton}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate("Profile")}
+            style={
+              styles.profileButton
+            }
+            activeOpacity={
+              0.8
+            }
+            onPress={() =>
+              navigation.navigate(
+                "Profile"
+              )
+            }
           >
             {currentUserImage ? (
-  <Image
-    source={{ uri: currentUserImage }}
-    style={styles.profileButtonImage}
-    resizeMode="cover"
-  />
-) : (
-  <Ionicons
-    name="person"
-    size={24}
-    color={COLORS.blue}
-  />
-)}
+              <Image
+                source={{
+                  uri:
+                    currentUserImage,
+                }}
+                style={
+                  styles.profileButtonImage
+                }
+                resizeMode="cover"
+              />
+            ) : (
+              <Ionicons
+                name="person"
+                size={24}
+                color={
+                  COLORS.blue
+                }
+              />
+            )}
           </TouchableOpacity>
         </View>
 
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+          style={
+            styles.scrollView
+          }
+          contentContainerStyle={
+            styles.scrollContent
+          }
+          showsVerticalScrollIndicator={
+            false
+          }
         >
-          <Text style={styles.sectionTitle}>
+          {/* FUTURE MEETUPS */}
+
+          <Text
+            style={
+              styles.sectionTitle
+            }
+          >
             Future meet-ups
           </Text>
 
-          {meetups.length > 0 ? (
+          {meetups.length >
+          0 ? (
             <View>
-              {meetups.map((meetup) => (
-                <MeetupCard
-                  key={meetup.id}
-                  meetup={meetup}
-                  onPress={() =>
-                    navigation.navigate("MeetupDetail", {
-                      meetup,
-                    })
-                  }
-                />
-              ))}
+              {meetups.map(
+                (meetup) => (
+                  <MeetupCard
+                    key={
+                      meetup.id
+                    }
+                    meetup={
+                      meetup
+                    }
+                    onPress={() =>
+                      navigation.navigate(
+                        "MeetupDetail",
+                        {
+                          meetup,
+                        }
+                      )
+                    }
+                  />
+                )
+              )}
             </View>
           ) : (
-            <View style={styles.emptyState}>
-              <View style={styles.emptyIllustration}>
+            <View
+              style={
+                styles.emptyState
+              }
+            >
+              <View
+                style={
+                  styles.emptyIllustration
+                }
+              >
                 <Ionicons
                   name="location"
                   size={72}
-                  color={COLORS.green}
+                  color={
+                    COLORS.green
+                  }
                 />
               </View>
 
-              <Text style={styles.emptyTitle}>
-                You have no meet-ups planned
+              <Text
+                style={
+                  styles.emptyTitle
+                }
+              >
+                You have no
+                meet-ups planned
               </Text>
 
-              <Text style={styles.emptyText}>
-                Saved meet-ups will be available here.
+              <Text
+                style={
+                  styles.emptyText
+                }
+              >
+                Saved meet-ups
+                will be available
+                here.
               </Text>
             </View>
           )}
+
+          {/* SERVICES */}
 
           <Text
             style={[
@@ -608,39 +1358,74 @@ if (Platform.OS === "web") {
             Services
           </Text>
 
-          <View style={styles.servicesRow}>
+          <View
+            style={
+              styles.servicesRow
+            }
+          >
+            {/* SHARE LOCATION */}
+
             <TouchableOpacity
               style={[
                 styles.serviceCard,
                 styles.shareLocationCard,
+
+                isSharingLocation &&
+                  styles.shareLocationCardActive,
               ]}
-              activeOpacity={0.8}
-              onPress={startLocationSharing}
+              activeOpacity={
+                0.8
+              }
+              onPress={
+                isSharingLocation
+                  ? stopLocationSharing
+                  : startLocationSharing
+              }
             >
               <Ionicons
-                name="location"
+                name={
+                  isSharingLocation
+                    ? "stop-circle-outline"
+                    : "location"
+                }
                 size={29}
-                color={COLORS.green}
+                color={
+                  isSharingLocation
+                    ? COLORS.offWhite
+                    : COLORS.green
+                }
               />
 
               <Text
                 style={[
                   styles.serviceText,
-                  styles.shareLocationText,
+
+                  !isSharingLocation &&
+                    styles.shareLocationText,
                 ]}
               >
-                Share{"\n"}location
+                {isSharingLocation
+                  ? "Stop\nsharing"
+                  : "Share\nlocation"}
               </Text>
             </TouchableOpacity>
+
+            {/* ALARM */}
 
             <TouchableOpacity
               style={[
                 styles.serviceCard,
                 styles.alarmCard,
-                isAlarmPlaying && styles.alarmCardActive,
+
+                isAlarmPlaying &&
+                  styles.alarmCardActive,
               ]}
-              activeOpacity={0.8}
-              onPress={toggleAlarm}
+              activeOpacity={
+                0.8
+              }
+              onPress={
+                toggleAlarm
+              }
             >
               <Ionicons
                 name={
@@ -649,45 +1434,76 @@ if (Platform.OS === "web") {
                     : "radio-outline"
                 }
                 size={29}
-                color={COLORS.offWhite}
+                color={
+                  COLORS.offWhite
+                }
               />
 
-              <Text style={styles.serviceText}>
+              <Text
+                style={
+                  styles.serviceText
+                }
+              >
                 {isAlarmPlaying
                   ? "Stop Siren"
                   : "Alarm Siren"}
               </Text>
             </TouchableOpacity>
 
+            {/* 112 */}
+
             <TouchableOpacity
               style={[
                 styles.serviceCard,
                 styles.emergencyCard,
               ]}
-              activeOpacity={0.8}
-              onPress={callEmergencyServices}
+              activeOpacity={
+                0.8
+              }
+              onPress={
+                callEmergencyServices
+              }
             >
               <Ionicons
                 name="alert-circle-outline"
                 size={30}
-                color={COLORS.offWhite}
+                color={
+                  COLORS.offWhite
+                }
               />
 
-              <Text style={styles.serviceText}>
+              <Text
+                style={
+                  styles.serviceText
+                }
+              >
                 Call 112
               </Text>
             </TouchableOpacity>
           </View>
 
-          <View style={styles.safetyMessage}>
+          {/* SAFETY MESSAGE */}
+
+          <View
+            style={
+              styles.safetyMessage
+            }
+          >
             <Ionicons
               name="shield-checkmark-outline"
               size={18}
-              color={COLORS.green}
+              color={
+                COLORS.green
+              }
             />
 
-            <Text style={styles.safetyMessageText}>
-              You’re safe. Help is always one tap away
+            <Text
+              style={
+                styles.safetyMessageText
+              }
+            >
+              You’re safe. Help is
+              always one tap away
             </Text>
           </View>
         </ScrollView>
@@ -696,176 +1512,353 @@ if (Platform.OS === "web") {
   );
 }
 
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: COLORS.blue,
-  },
+// =========================================================
+// STYLES
+// =========================================================
 
-  screen: {
-    flex: 1,
-    backgroundColor: COLORS.offWhite,
-  },
+const styles =
+  StyleSheet.create({
+    safeArea: {
+      flex: 1,
 
-  header: {
-    minHeight: 75,
-    backgroundColor: COLORS.blue,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 14,
-    flexDirection: "row",
-    alignItems: "flex-end",
-    justifyContent: "space-between",
-  },
-
-  headerTitle: {
-    color: COLORS.offWhite,
-    fontSize: 28,
-    fontWeight: "700",
-  },
-
-  profileButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: COLORS.lightgreen,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-    borderColor: COLORS.offWhite,
-  },
-
-  scrollView: {
-    flex: 1,
-  },
-
-  scrollContent: {
-    paddingHorizontal: 14,
-    paddingTop: 14,
-    paddingBottom: 24,
-  },
-
-  sectionTitle: {
-    color: COLORS.blue,
-    fontSize: 22,
-    fontWeight: "700",
-    marginBottom: 10,
-  },
-
-  emptyState: {
-    minHeight: 340,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 30,
-  },
-
-  emptyIllustration: {
-    width: 150,
-    height: 130,
-    borderRadius: 75,
-    backgroundColor: COLORS.lightgreen,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-  },
-
-  emptyTitle: {
-    color: COLORS.blue,
-    fontSize: 17,
-    fontWeight: "700",
-    textAlign: "center",
-    marginBottom: 5,
-  },
-
-  emptyText: {
-    color: COLORS.span,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: "center",
-    maxWidth: 240,
-  },
-
-  servicesTitle: {
-    marginTop: 8,
-  },
-
-  servicesRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-  },
-
-  serviceCard: {
-    width: "31.5%",
-    minHeight: 140,
-    borderRadius: 10,
-    paddingHorizontal: 5,
-    alignItems: "center",
-    justifyContent: "center",
-
-    shadowColor: COLORS.offBlack,
-    shadowOffset: {
-      width: 0,
-      height: 2,
+      backgroundColor:
+        COLORS.blue,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
 
-  shareLocationCard: {
-    backgroundColor: COLORS.lightgreen,
-    borderWidth: 1,
-    borderColor: COLORS.midGray,
-  },
+    screen: {
+      flex: 1,
 
-  alarmCard: {
-    backgroundColor: COLORS.blue,
-  },
+      backgroundColor:
+        COLORS.offWhite,
+    },
 
-  alarmCardActive: {
-    opacity: 0.8,
-  },
+    header: {
+      minHeight:
+        75,
 
-  emergencyCard: {
-    backgroundColor: COLORS.red,
-  },
+      backgroundColor:
+        COLORS.blue,
 
-  serviceText: {
-    color: COLORS.offWhite,
-    fontSize: 16,
-    lineHeight: 22,
-    textAlign: "center",
-    marginTop: 13,
-    fontWeight: "500",
-  },
+      borderBottomLeftRadius:
+        20,
 
-  shareLocationText: {
-    color: COLORS.green,
-  },
+      borderBottomRightRadius:
+        20,
 
-  safetyMessage: {
-    minHeight: 45,
-    backgroundColor: COLORS.lightgreen,
-    borderRadius: 8,
-    marginTop: 13,
-    paddingHorizontal: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-  },
+      paddingHorizontal:
+        16,
 
-  safetyMessageText: {
-    flexShrink: 1,
-    color: COLORS.green,
-    fontSize: 14,
-    marginLeft: 7,
-    textAlign: "center",
-  },
-  profileButtonImage: {
-  width: "100%",
-  height: "100%",
-  borderRadius: 22,
-},
-});
+      paddingTop:
+        8,
+
+      paddingBottom:
+        14,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "flex-end",
+
+      justifyContent:
+        "space-between",
+    },
+
+    headerTitle: {
+      color:
+        COLORS.offWhite,
+
+      fontSize:
+        28,
+
+      fontWeight:
+        "700",
+    },
+
+    profileButton: {
+      width: 44,
+
+      height: 44,
+
+      borderRadius:
+        22,
+
+      backgroundColor:
+        COLORS.lightgreen,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      borderWidth:
+        2,
+
+      borderColor:
+        COLORS.offWhite,
+    },
+
+    profileButtonImage: {
+      width:
+        "100%",
+
+      height:
+        "100%",
+
+      borderRadius:
+        22,
+    },
+
+    scrollView: {
+      flex: 1,
+    },
+
+    scrollContent: {
+      paddingHorizontal:
+        14,
+
+      paddingTop:
+        14,
+
+      paddingBottom:
+        24,
+    },
+
+    sectionTitle: {
+      color:
+        COLORS.blue,
+
+      fontSize:
+        22,
+
+      fontWeight:
+        "700",
+
+      marginBottom:
+        10,
+    },
+
+    emptyState: {
+      minHeight:
+        340,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      paddingHorizontal:
+        30,
+    },
+
+    emptyIllustration: {
+      width:
+        150,
+
+      height:
+        130,
+
+      borderRadius:
+        75,
+
+      backgroundColor:
+        COLORS.lightgreen,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      marginBottom:
+        20,
+    },
+
+    emptyTitle: {
+      color:
+        COLORS.blue,
+
+      fontSize:
+        17,
+
+      fontWeight:
+        "700",
+
+      textAlign:
+        "center",
+
+      marginBottom:
+        5,
+    },
+
+    emptyText: {
+      color:
+        COLORS.span,
+
+      fontSize:
+        16,
+
+      lineHeight:
+        22,
+
+      textAlign:
+        "center",
+
+      maxWidth:
+        240,
+    },
+
+    servicesTitle: {
+      marginTop:
+        8,
+    },
+
+    servicesRow: {
+      flexDirection:
+        "row",
+
+      justifyContent:
+        "space-between",
+    },
+
+    serviceCard: {
+      width:
+        "31.5%",
+
+      minHeight:
+        140,
+
+      borderRadius:
+        10,
+
+      paddingHorizontal:
+        5,
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+
+      shadowColor:
+        COLORS.offBlack,
+
+      shadowOffset: {
+        width: 0,
+        height: 2,
+      },
+
+      shadowOpacity:
+        0.1,
+
+      shadowRadius:
+        4,
+
+      elevation:
+        2,
+    },
+
+    shareLocationCard: {
+      backgroundColor:
+        COLORS.lightgreen,
+
+      borderWidth:
+        1,
+
+      borderColor:
+        COLORS.midGray,
+    },
+
+    shareLocationCardActive: {
+      backgroundColor:
+        COLORS.green,
+
+      borderColor:
+        COLORS.green,
+    },
+
+    alarmCard: {
+      backgroundColor:
+        COLORS.blue,
+    },
+
+    alarmCardActive: {
+      opacity:
+        0.8,
+    },
+
+    emergencyCard: {
+      backgroundColor:
+        COLORS.red,
+    },
+
+    serviceText: {
+      color:
+        COLORS.offWhite,
+
+      fontSize:
+        16,
+
+      lineHeight:
+        22,
+
+      textAlign:
+        "center",
+
+      marginTop:
+        13,
+
+      fontWeight:
+        "500",
+    },
+
+    shareLocationText: {
+      color:
+        COLORS.green,
+    },
+
+    safetyMessage: {
+      minHeight:
+        45,
+
+      backgroundColor:
+        COLORS.lightgreen,
+
+      borderRadius:
+        8,
+
+      marginTop:
+        13,
+
+      paddingHorizontal:
+        10,
+
+      flexDirection:
+        "row",
+
+      alignItems:
+        "center",
+
+      justifyContent:
+        "center",
+    },
+
+    safetyMessageText: {
+      flexShrink:
+        1,
+
+      color:
+        COLORS.green,
+
+      fontSize:
+        14,
+
+      marginLeft:
+        7,
+
+      textAlign:
+        "center",
+    },
+  });
